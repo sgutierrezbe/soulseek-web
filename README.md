@@ -40,53 +40,54 @@ This project wouldn't be possible without these tools and services:
 
 ## Requirements
 
-- [slskd](https://github.com/slskd/slskd) running and accessible
 - Python 3.11+
+- For Linux/Docker: [slskd](https://github.com/slskd/slskd) running and accessible
+- For Windows: nothing — the installer handles everything
 
 ---
 
-## Instalación
+## Installation
 
-### Opción 1 — Un solo comando (Linux, recomendado)
+### Option 1 — Linux (recommended)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/sgutierrezbe/soulseek-web/main/install.sh | sudo bash
 ```
 
-Esto clona el repo en `/opt/soulseek-web`, instala las dependencias, crea y habilita un servicio systemd que arranca solo con el sistema.
+Clones the repo to `/opt/soulseek-web`, installs dependencies, and creates a systemd service that starts automatically with the system.
 
-Al terminar, abrí `http://<tu-ip>:8080` en el navegador — la primera vez te pedirá la URL de slskd y tu API key.
+Open `http://<your-ip>:8080` — on first launch you'll be prompted for your slskd URL and API key.
 
-Para actualizar a la última versión, simplemente volvé a correr el mismo comando.
+To update to the latest version, just run the same command again.
 
 ---
 
-### Opción 2 — Windows (totalmente autónomo)
+### Option 2 — Windows (fully standalone)
 
-No necesitás nada instalado previamente. El script instala todo solo.
+No prerequisites needed. The script installs everything.
 
-Abrí **PowerShell** y pegá esto:
+Open **PowerShell** and paste:
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://raw.githubusercontent.com/sgutierrezbe/soulseek-web/main/install.ps1 | iex
 ```
 
-**Qué hace:**
-1. Instala Python y Git si no están (vía winget)
-2. Descarga e instala **slskd** (el motor de Soulseek) automáticamente
-3. Clona e instala soulseek-web
-4. Registra ambos programas para que arranquen solos con Windows
-5. Abre el navegador en `http://localhost:8080`
+**What it does:**
+1. Installs Python and Git if missing (via winget)
+2. Downloads and installs **slskd** (the Soulseek daemon) automatically
+3. Clones and installs soulseek-web
+4. Registers both programs to start automatically with Windows
+5. Opens the browser at `http://localhost:8080`
 
-Al abrirse por primera vez, solo te pedirá tu **usuario y contraseña de Soulseek**. Eso es todo.
+On first launch, it will only ask for your **Soulseek username and password**. That's it.
 
-> Si no tenés cuenta de Soulseek, creá una gratis en [slsknet.org](https://www.slsknet.org/).
+> No Soulseek account? Create one for free at [slsknet.org](https://www.slsknet.org/).
 
-Para actualizar, volvé a ejecutar el mismo comando.
+To update, just run the same command again.
 
 ---
 
-### Opción 3 — Docker
+### Option 3 — Docker
 
 ```bash
 git clone https://github.com/sgutierrezbe/soulseek-web.git
@@ -94,11 +95,11 @@ cd soulseek-web
 docker compose up -d
 ```
 
-Editá el `docker-compose.yml` para ajustar la ruta de tu carpeta de música (`/mnt/music`).
+Edit `docker-compose.yml` to set your music folder path (`/mnt/music`).
 
 ---
 
-### Opción 4 — Manual (cualquier SO)
+### Option 4 — Manual (any OS)
 
 ```bash
 git clone https://github.com/sgutierrezbe/soulseek-web.git
@@ -111,27 +112,27 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 
 ---
 
-## Configuración
+## Configuration
 
-La primera vez que abrís la UI en el navegador, un wizard te pedirá:
+On first launch, a setup wizard will ask for:
 
-- **URL de slskd** — dónde corre tu daemon (ej: `http://192.168.1.10:5030`)
-- **API key** — la encontrás en tu `slskd.yml` bajo `web.authentication.apiKey`
-- **Carpeta de descargas** — ruta donde slskd guarda los archivos
+- **slskd URL** — where your daemon is running (e.g. `http://192.168.1.10:5030`)
+- **API key** — found in your `slskd.yml` under `web.authentication.apiKey`
+- **Download folder** — path where slskd saves downloaded files
 
-La configuración se guarda en `credentials.json` y persiste entre reinicios.
+Settings are saved to `credentials.json` and persist across restarts.
 
-Si preferís configurar por variables de entorno:
+You can also configure via environment variables:
 
-| Variable | Default | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `SLSKD_URL` | `http://localhost:5030` | URL de tu instancia de slskd |
-| `SLSKD_API_KEY` | — | API key de tu config de slskd |
-| `MUSIC_PATH` | `/mnt/music/downloads` | Ruta a tu librería de música local |
+| `SLSKD_URL` | `http://localhost:5030` | URL of your slskd instance |
+| `SLSKD_API_KEY` | — | API key from your slskd config |
+| `MUSIC_PATH` | `/mnt/music/downloads` | Path to your local music library |
 
 ---
 
-## Comandos útiles (systemd)
+## Useful commands (systemd)
 
 ```bash
 sudo systemctl status soulseek-web
