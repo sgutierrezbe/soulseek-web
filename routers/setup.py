@@ -40,10 +40,19 @@ def load_local_setup() -> dict:
 def get_active_credentials() -> dict:
     creds = load_credentials()
     local = load_local_setup()
+    # When local_setup.json exists (Windows standalone install), the local slskd
+    # URL and API key are fixed — they must always win over credentials.json,
+    # which may contain a previously saved remote server address.
+    if local:
+        return {
+            "slskd_url":     os.getenv("SLSKD_URL")     or local.get("slskd_url", ""),
+            "slskd_api_key": os.getenv("SLSKD_API_KEY") or local.get("slskd_api_key", ""),
+            "music_path":    os.getenv("MUSIC_PATH")    or creds.get("music_path") or local.get("default_music_path", ""),
+        }
     return {
-        "slskd_url":     os.getenv("SLSKD_URL")     or creds.get("slskd_url")     or local.get("slskd_url", ""),
-        "slskd_api_key": os.getenv("SLSKD_API_KEY") or creds.get("slskd_api_key") or local.get("slskd_api_key", ""),
-        "music_path":    os.getenv("MUSIC_PATH")    or creds.get("music_path")    or local.get("default_music_path", ""),
+        "slskd_url":     os.getenv("SLSKD_URL")     or creds.get("slskd_url",     ""),
+        "slskd_api_key": os.getenv("SLSKD_API_KEY") or creds.get("slskd_api_key", ""),
+        "music_path":    os.getenv("MUSIC_PATH")    or creds.get("music_path",    ""),
     }
 
 
