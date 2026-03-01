@@ -1,51 +1,51 @@
 # soulseek-web
 
-Una interfaz web minimalista para [slskd](https://github.com/slskd/slskd) pensada para hacer que buscar y descargar música en Soulseek sea simple, rápido y cómodo — desde cualquier dispositivo y sin necesidad de instalar ningún cliente de escritorio.
+A minimalist web UI for [slskd](https://github.com/slskd/slskd) designed to make searching and downloading music on Soulseek simple, fast, and comfortable — from any device, without installing any desktop client.
 
-La idea es eliminar la fricción: buscás un artista o álbum, ves los resultados organizados y rankeados, y descargás con un clic. Nada más.
+The goal is to remove friction: search for an artist or album, see organized and ranked results, and download with one click. That's it.
 
 ---
 
-## Características
+## Features
 
-- 🔍 **Búsqueda de álbumes y canciones** en la red Soulseek
-- 📀 **Vista de álbumes** con lista de tracks expandible y portadas automáticas
-- ⬇️ **Descarga álbumes completos** o canciones individuales
-- 🏅 **Resultados inteligentes**: ordenados por popularidad real (Deezer), formato (FLAC primero), bitrate y disponibilidad del peer
-- 🖼️ **Portadas automáticas** obtenidas en tiempo real
-- 📱 **Responsive**: navegación inferior en móvil, tabla completa en escritorio
-- 🔎 **Filtros por formato**: TODOS / FLAC / MP3
+- 🔍 **Search albums and songs** across the Soulseek network
+- 📀 **Album view** with expandable track list and automatic cover art
+- ⬇️ **Download full albums** or individual tracks
+- 🏅 **Smart results**: ranked by real popularity (Deezer), format (FLAC first), bitrate, and peer availability
+- 🖼️ **Automatic cover art** fetched in real time
+- 📱 **Responsive**: bottom navigation on mobile, full table on desktop
+- 🔎 **Format filters**: ALL / FLAC / MP3
 
 ---
 
 ## Stack
 
 - **Backend**: [FastAPI](https://fastapi.tiangolo.com/) + [httpx](https://www.python-httpx.org/)
-- **Frontend**: [Alpine.js](https://alpinejs.dev/) — sin build step, sin dependencias de Node
+- **Frontend**: [Alpine.js](https://alpinejs.dev/) — no build step, no Node dependencies
 - **Audio metadata**: [Mutagen](https://mutagen.readthedocs.io/)
 
 ---
 
-## APIs utilizadas y agradecimientos
+## APIs & Acknowledgements
 
-Este proyecto no sería posible sin estas herramientas y servicios:
+This project wouldn't be possible without these tools and services:
 
-- **[slskd](https://github.com/slskd/slskd)** — el daemon de Soulseek que hace todo el trabajo pesado. Toda la búsqueda y descarga va a través de su API REST. Gracias al equipo de slskd por construir un cliente tan sólido y con una API tan limpia.
+- **[slskd](https://github.com/slskd/slskd)** — the Soulseek daemon that does all the heavy lifting. All searching and downloading goes through its REST API. Huge thanks to the slskd team for building such a solid client with such a clean API.
 
-- **[Deezer API](https://developers.deezer.com/)** — usada para dos cosas: obtener las portadas de los álbumes en alta resolución, y rankear los resultados de búsqueda según la popularidad real de los álbumes. Gratuita, sin API key requerida.
+- **[Deezer API](https://developers.deezer.com/)** — used for two things: fetching high-resolution album cover art, and ranking search results based on real album popularity. Free, no API key required.
 
-- **[Soulseek](https://www.slsknet.org/)** — la red P2P de música que lleva más de 20 años siendo un recurso invaluable para descubrir y compartir música, especialmente la más difícil de encontrar en plataformas de streaming.
+- **[Soulseek](https://www.slsknet.org/)** — the P2P music network that has been an invaluable resource for discovering and sharing music for over 20 years, especially music that's hard to find on streaming platforms.
 
 ---
 
-## Requisitos
+## Requirements
 
-- [slskd](https://github.com/slskd/slskd) corriendo y accesible
+- [slskd](https://github.com/slskd/slskd) running and accessible
 - Python 3.11+
 
 ---
 
-## Instalación
+## Setup
 
 ```bash
 git clone https://github.com/sgutierrezbe/soulseek-web.git
@@ -56,24 +56,24 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Editá .env con la URL y API key de tu instancia de slskd
+# Edit .env with your slskd URL and API key
 ```
 
-## Configuración
+## Configuration
 
-| Variable | Default | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `SLSKD_URL` | `http://localhost:5030` | URL de tu instancia de slskd |
-| `SLSKD_API_KEY` | — | API key configurada en slskd |
-| `MUSIC_PATH` | `/mnt/music/downloads` | Ruta a tu librería local |
+| `SLSKD_URL` | `http://localhost:5030` | URL of your slskd instance |
+| `SLSKD_API_KEY` | — | API key from your slskd config |
+| `MUSIC_PATH` | `/mnt/music/downloads` | Path to your local music library |
 
-## Correr
+## Run
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-## Correr como servicio systemd
+## Run as a systemd service
 
 ```ini
 [Unit]
@@ -92,6 +92,6 @@ WantedBy=multi-user.target
 
 ---
 
-## Licencia
+## License
 
 MIT
