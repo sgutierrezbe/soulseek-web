@@ -1,10 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
-from config import SLSKD_URL, SLSKD_API_KEY
+import config
 
 router = APIRouter()
-HEADERS = {"X-API-Key": SLSKD_API_KEY}
 
 
 class DownloadRequest(BaseModel):
@@ -20,10 +19,11 @@ class DownloadFolderRequest(BaseModel):
 
 @router.post("/")
 async def start_download(body: DownloadRequest):
+    headers = {"X-API-Key": config.SLSKD_API_KEY}
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
-            headers=HEADERS,
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
+            headers=headers,
             json=[{"filename": body.filename, "size": body.size}]
         )
         if resp.status_code not in (200, 201):
@@ -33,10 +33,11 @@ async def start_download(body: DownloadRequest):
 
 @router.post("/folder")
 async def download_folder(body: DownloadFolderRequest):
+    headers = {"X-API-Key": config.SLSKD_API_KEY}
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
-            headers=HEADERS,
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
+            headers=headers,
             json=[{"filename": f["filename"], "size": f["size"]} for f in body.files]
         )
         if resp.status_code not in (200, 201):
@@ -46,10 +47,11 @@ async def download_folder(body: DownloadFolderRequest):
 
 @router.get("/")
 async def get_downloads():
+    headers = {"X-API-Key": config.SLSKD_API_KEY}
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{SLSKD_URL}/api/v0/transfers/downloads",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads",
+            headers=headers
         )
         downloads = []
         for user_group in resp.json():
@@ -69,9 +71,10 @@ async def get_downloads():
 
 @router.delete("/{username}/{file_id}")
 async def cancel_download(username: str, file_id: str):
+    headers = {"X-API-Key": config.SLSKD_API_KEY}
     async with httpx.AsyncClient() as client:
         await client.delete(
-            f"{SLSKD_URL}/api/v0/transfers/downloads/{username}/{file_id}",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads/{username}/{file_id}",
+            headers=headers
         )
     return {"ok": True}
