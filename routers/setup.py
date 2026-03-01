@@ -28,7 +28,7 @@ def load_local_setup() -> dict:
     """Config generada por install.ps1 en instalaciones Windows autónomas."""
     if os.path.exists(LOCAL_SETUP_FILE):
         try:
-            with open(LOCAL_SETUP_FILE) as f:
+            with open(LOCAL_SETUP_FILE, encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             pass

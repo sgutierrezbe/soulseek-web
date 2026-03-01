@@ -215,8 +215,8 @@ if (Test-Path "$INSTALL_DIR\.git") {
 
 Set-Location $INSTALL_DIR
 
-# Escribir local_setup.json ahora que la carpeta existe
-Set-Content -Path "$INSTALL_DIR\local_setup.json" -Value $localSetup -Encoding UTF8
+# Escribir local_setup.json ahora que la carpeta existe (sin BOM)
+[System.IO.File]::WriteAllText("$INSTALL_DIR\local_setup.json", $localSetup, [System.Text.Encoding]::UTF8)
 Write-Ok "local_setup.json escrito"
 
 # -- Entorno virtual y dependencias Python ------------------------------------
