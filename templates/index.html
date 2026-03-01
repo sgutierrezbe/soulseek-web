@@ -951,6 +951,70 @@
       </div>
     </template>
 
+    <!-- Setup view (first run) -->
+    <template x-if="view === 'setup'">
+      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="topbar">
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">FIRST RUN — CONFIGURATION</span>
+        </div>
+        <div class="content" style="max-width:480px; margin:0 auto; width:100%;">
+          <div style="margin-bottom:28px;">
+            <div style="font-family:'Space Mono',monospace; font-size:13px; color:var(--accent); margin-bottom:6px;">Welcome to Soulseek Web</div>
+            <div style="font-size:13px; color:var(--muted); line-height:1.6;">Enter your <a href="https://github.com/slskd/slskd" target="_blank" style="color:var(--text);">slskd</a> connection details to get started. These settings will be saved to the <code style="font-family:'Space Mono',monospace; font-size:11px;">.env</code> file.</div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.08em;">SLSKD URL</span>
+              <input
+                type="text"
+                x-model="setupForm.slskd_url"
+                placeholder="http://localhost:5030"
+                style="background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:4px; font-size:13px; outline:none; width:100%;"
+                @focus="$el.style.borderColor='var(--accent)'"
+                @blur="$el.style.borderColor='var(--border)'"
+              >
+            </label>
+
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.08em;">API KEY <span style="color:var(--accent2);">*</span></span>
+              <input
+                type="text"
+                x-model="setupForm.slskd_api_key"
+                placeholder="Your slskd API key"
+                style="background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:4px; font-size:13px; outline:none; width:100%;"
+                @focus="$el.style.borderColor='var(--accent)'"
+                @blur="$el.style.borderColor='var(--border)'"
+                @keydown.enter="saveSetup()"
+              >
+            </label>
+
+            <label style="display:flex; flex-direction:column; gap:6px;">
+              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.08em;">MUSIC PATH</span>
+              <input
+                type="text"
+                x-model="setupForm.music_path"
+                placeholder="/mnt/music/downloads"
+                style="background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:4px; font-size:13px; outline:none; width:100%;"
+                @focus="$el.style.borderColor='var(--accent)'"
+                @blur="$el.style.borderColor='var(--border)'"
+              >
+            </label>
+
+            <button
+              class="btn"
+              @click="saveSetup()"
+              :disabled="setupSaving || !setupForm.slskd_api_key.trim()"
+              style="align-self:flex-start; margin-top:8px;"
+            >
+              <span x-show="!setupSaving">SAVE &amp; CONTINUE</span>
+              <span x-show="setupSaving">SAVING...</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- Downloads view -->
     <template x-if="view === 'downloads'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
@@ -1014,13 +1078,13 @@ function app() {
     filterExt: '',
     downloads: [],
     downloadPoll: null,
-    libraryAlbums: [],
-    libraryLoading: false,
     connected: false,
     downloadingFolders: new Set(),
     toasts: [],
     searchMode: 'albums',
     expandedAlbum: null,
+    setupForm: { slskd_url: 'http://localhost:5030', slskd_api_key: '', music_path: '/mnt/music/downloads' },
+    setupSaving: false,
 
     get filteredAlbums() {
       if (!this.filterExt) return this.albums;
@@ -1056,7 +1120,16 @@ function app() {
     },
 
     async init() {
-      await this.checkStatus();
+      const status = await fetch('/api/setup/status').then(r => r.json()).catch(() => ({ setup_required: false }));
+      if (status.setup_required) {
+        this.view = 'setup';
+        return;
+      }
+      this.startPolling();
+    },
+
+    startPolling() {
+      this.checkStatus();
       setInterval(() => this.checkStatus(), 10000);
       // Auto-refresh downloads if on that view
       this.downloadPoll = setInterval(() => {
@@ -1169,15 +1242,30 @@ function app() {
       } catch(e) {}
     },
 
-    async loadLibrary() {
-      this.libraryLoading = true;
+    async saveSetup() {
+      if (!this.setupForm.slskd_api_key.trim()) {
+        this.toast('API key is required', true);
+        return;
+      }
+      this.setupSaving = true;
       try {
-        const r = await fetch('/api/library/albums');
-        this.libraryAlbums = await r.json();
+        const resp = await fetch('/api/setup/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.setupForm)
+        });
+        if (resp.ok) {
+          this.view = 'search';
+          this.startPolling();
+          this.toast('Configuration saved!');
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          this.toast(err.detail || 'Error saving configuration', true);
+        }
       } catch(e) {
-        this.toast('Error cargando librería', true);
+        this.toast('Connection error', true);
       } finally {
-        this.libraryLoading = false;
+        this.setupSaving = false;
       }
     },
 
