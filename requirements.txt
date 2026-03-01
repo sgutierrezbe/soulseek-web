@@ -3,3 +3,4 @@ uvicorn
 httpx
 mutagen
 python-multipart
+jinja2
