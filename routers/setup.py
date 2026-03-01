@@ -155,6 +155,8 @@ shares:
     try:
         with open(slskd_config_path, "w", encoding="utf-8") as f:
             f.write(yml)
+        os.makedirs(music_path, exist_ok=True)
+        os.makedirs(os.path.join(music_path, ".incomplete"), exist_ok=True)
     except Exception as exc:
         return {"ok": False, "error": f"No se pudo escribir la config de slskd: {exc}"}
 

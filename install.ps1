@@ -182,6 +182,7 @@ shares:
 
 New-Item -ItemType Directory -Force -Path (Split-Path $MUSIC_DIR) | Out-Null
 New-Item -ItemType Directory -Force -Path $MUSIC_DIR | Out-Null
+New-Item -ItemType Directory -Force -Path "$MUSIC_DIR\.incomplete" | Out-Null
 Set-Content -Path $SLSKD_CONFIG -Value $slskdYml -Encoding UTF8
 Write-Ok "slskd.yml escrito"
 
