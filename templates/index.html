@@ -731,10 +731,6 @@
       <span>Descargas</span>
       <span x-show="activeDownloads > 0" class="bottom-nav-badge" x-text="activeDownloads"></span>
     </button>
-    <button class="bottom-nav-item" :class="{ active: view === 'library' }" @click="view = 'library'; loadLibrary()">
-      <span class="nav-icon">♫</span>
-      <span>Librería</span>
-    </button>
   </nav>
 
   <!-- Sidebar -->
@@ -750,9 +746,6 @@
       <div class="nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
         <span class="nav-icon">↓</span> Descargas
         <span x-show="activeDownloads > 0" class="badge" x-text="activeDownloads" style="margin-left:auto"></span>
-      </div>
-      <div class="nav-item" :class="{ active: view === 'library' }" @click="view = 'library'; loadLibrary()">
-        <span class="nav-icon">♫</span> Librería
       </div>
     </nav>
     <div class="status-bar">
@@ -992,47 +985,6 @@
               </div>
             </div>
           </template>
-        </div>
-      </div>
-    </template>
-
-    <!-- Library view -->
-    <template x-if="view === 'library'">
-      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">LIBRERÍA</span>
-          <span class="badge" x-text="libraryAlbums.length + ' álbumes'" style="margin-left:auto"></span>
-          <button class="btn-ghost" @click="loadLibrary()">↺ ACTUALIZAR</button>
-        </div>
-        <div class="content">
-          <div x-show="libraryAlbums.length === 0 && !libraryLoading" class="empty-state">
-            <div class="empty-state-icon">♫</div>
-            <div class="empty-state-text">No hay álbumes descargados aún</div>
-          </div>
-          <div x-show="libraryLoading" class="searching-indicator">
-            <div class="spinner"></div>
-            <span>Cargando librería...</span>
-          </div>
-          <div class="album-grid" x-show="!libraryLoading">
-            <template x-for="(a, i) in libraryAlbums" :key="i">
-              <div class="album-card">
-                <div class="album-cover" style="overflow:hidden;">
-                  <img
-                    :src="a.cover_path ? '/api/covers/local?path=' + encodeURIComponent(a.cover_path) : ''"
-                    style="width:100%; height:100%; object-fit:cover;"
-                    onerror="this.style.display='none'; this.parentElement.innerHTML='♫';"
-                    x-show="a.cover_path"
-                  >
-                  <span x-show="!a.cover_path">♫</span>
-                </div>
-                <div class="album-info">
-                  <div class="album-title" :title="a.album" x-text="a.album"></div>
-                  <div class="album-artist" x-text="a.artist"></div>
-                  <div class="album-tracks" x-text="a.track_count + ' tracks'"></div>
-                </div>
-              </div>
-            </template>
-          </div>
         </div>
       </div>
     </template>
