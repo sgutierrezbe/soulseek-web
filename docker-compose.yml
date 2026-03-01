@@ -1,0 +1,20 @@
+services:
+  soulseek-web:
+    build: .
+    image: soulseek-web
+    container_name: soulseek-web
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persiste la configuración entre reinicios
+      - ./credentials.json:/app/credentials.json
+      # Montá tu carpeta de música (ajustá la ruta izquierda a tu sistema)
+      - /mnt/music:/mnt/music:ro
+    restart: unless-stopped
+    environment:
+      # Opcional: si preferís configurar por variables de entorno en lugar de
+      # usar el wizard del UI, descomentá y completá estas líneas:
+      # - SLSKD_URL=http://192.168.1.x:5030
+      # - SLSKD_API_KEY=tu-api-key
+      # - MUSIC_PATH=/mnt/music/downloads
+      - TZ=America/Argentina/Buenos_Aires

@@ -2,9 +2,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
-from routers import search, downloads, library, covers
+from routers import search, downloads, library, covers, setup
 
 app = FastAPI(title="Soulseek Web")
+app.include_router(setup.router, prefix="/api/setup")
 app.include_router(search.router, prefix="/api/search")
 app.include_router(downloads.router, prefix="/api/downloads")
 app.include_router(library.router, prefix="/api/library")

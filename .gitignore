@@ -9,6 +9,14 @@ venv/
 # Env
 .env
 
+# Configuración local (contiene API keys)
+credentials.json
+local_setup.json
+
+# Generados por los instaladores (contienen rutas absolutas del usuario)
+launcher.vbs
+start.bat
+
 # OS
 .DS_Store
 Thumbs.db

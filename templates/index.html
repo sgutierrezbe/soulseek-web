@@ -22,6 +22,8 @@
     --other: #8888aa;
   }
 
+  [x-cloak] { display: none !important; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -602,6 +604,132 @@
     .album-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   }
 
+  /* ── SETUP WIZARD ───────────────────────────────────────── */
+  .wizard-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .wizard-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 40px 44px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+  }
+
+  .wizard-logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .wizard-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  .wizard-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .field-group {
+    margin-bottom: 18px;
+  }
+
+  .field-label {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 7px;
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+
+  .wizard-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .wizard-input:focus { border-color: var(--accent); }
+  .wizard-input::placeholder { color: var(--muted); }
+
+  .wizard-error {
+    background: rgba(255,68,68,0.08);
+    border: 1px solid rgba(255,68,68,0.25);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #ff6666;
+    margin-bottom: 16px;
+    line-height: 1.4;
+  }
+
+  .wizard-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
+
+  .wizard-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 12px;
+    border-radius: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .wizard-btn:hover:not(:disabled) { background: #d4ff1a; }
+  .wizard-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  @media (max-width: 640px) {
+    .wizard-card { padding: 28px 22px; }
+  }
+
   /* Bottom nav (oculto en desktop) */
   .bottom-nav {
     display: none;
@@ -719,6 +847,132 @@
 <body>
 
 <div class="app" x-data="app()">
+
+  <!-- ══ SETUP WIZARD ══════════════════════════════════════════════ -->
+  <div class="wizard-overlay" x-show="setupDone === false" x-cloak>
+    <div class="wizard-card">
+      <div class="wizard-logo">SLSK//WEB</div>
+      <div class="wizard-sub">Primera configuración</div>
+
+      <!-- ── MODO LOCAL: instalación Windows autónoma (install.ps1) ── -->
+      <template x-if="localSetup">
+        <div>
+          <div class="wizard-title">Cuenta de Soulseek</div>
+
+          <div class="field-group">
+            <label class="field-label">Usuario</label>
+            <input
+              class="wizard-input"
+              type="text"
+              placeholder="tu usuario de Soulseek"
+              x-model="soulseekForm.soulseek_username"
+              @keydown.enter="saveLocalSetup()"
+              autocomplete="username"
+            >
+            <div class="field-hint">Si no tenés cuenta, creá una gratis en <a href="https://www.slsknet.org/" target="_blank" style="color:var(--accent)">slsknet.org</a></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Contraseña</label>
+            <input
+              class="wizard-input"
+              type="password"
+              placeholder="tu contraseña de Soulseek"
+              x-model="soulseekForm.soulseek_password"
+              @keydown.enter="saveLocalSetup()"
+              autocomplete="current-password"
+            >
+          </div>
+
+          <hr class="wizard-divider">
+
+          <div class="wizard-title">Carpeta de descargas</div>
+
+          <div class="field-group">
+            <label class="field-label">Ruta local</label>
+            <input
+              class="wizard-input"
+              type="text"
+              x-model="soulseekForm.music_path"
+              @keydown.enter="saveLocalSetup()"
+            >
+            <div class="field-hint">Carpeta donde se guardarán los archivos descargados.</div>
+          </div>
+
+          <div x-show="setupError" class="wizard-error" x-text="setupError"></div>
+
+          <button
+            class="wizard-btn"
+            @click="saveLocalSetup()"
+            :disabled="setupSaving || !soulseekForm.soulseek_username.trim() || !soulseekForm.soulseek_password.trim()"
+          >
+            <span x-show="!setupSaving">EMPEZAR</span>
+            <span x-show="setupSaving">CONECTANDO... (puede tardar ~20 s)</span>
+          </button>
+        </div>
+      </template>
+
+      <!-- ── MODO REMOTO: slskd ya corre en otro servidor ── -->
+      <template x-if="!localSetup">
+        <div>
+          <div class="wizard-title">Conexión con slskd</div>
+
+          <div class="field-group">
+            <label class="field-label">URL de slskd</label>
+            <input
+              class="wizard-input"
+              type="url"
+              placeholder="http://192.168.1.10:5030"
+              x-model="setupForm.slskd_url"
+              @keydown.enter="saveSetup()"
+            >
+            <div class="field-hint">Dirección donde corre tu instancia de slskd.</div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">API Key</label>
+            <input
+              class="wizard-input"
+              type="password"
+              placeholder="tu-api-key"
+              x-model="setupForm.slskd_api_key"
+              @keydown.enter="saveSetup()"
+            >
+            <div class="field-hint">La encontrás en tu <code style="color:var(--accent);font-size:11px;">slskd.yml</code> bajo <code style="color:var(--accent);font-size:11px;">web.authentication.apiKey</code>.</div>
+          </div>
+
+          <hr class="wizard-divider">
+
+          <div class="wizard-title">Carpeta de descargas</div>
+
+          <div class="field-group">
+            <label class="field-label">Ruta local</label>
+            <input
+              class="wizard-input"
+              type="text"
+              placeholder="/mnt/music/downloads"
+              x-model="setupForm.music_path"
+              @keydown.enter="saveSetup()"
+            >
+            <div class="field-hint">Carpeta donde slskd guarda los archivos descargados.</div>
+          </div>
+
+          <div x-show="setupError" class="wizard-error" x-text="setupError"></div>
+
+          <button
+            class="wizard-btn"
+            @click="saveSetup()"
+            :disabled="setupSaving || !setupForm.slskd_url.trim() || !setupForm.slskd_api_key.trim()"
+          >
+            <span x-show="!setupSaving">CONECTAR Y GUARDAR</span>
+            <span x-show="setupSaving">VERIFICANDO...</span>
+          </button>
+        </div>
+      </template>
+
+    </div>
+  </div>
+  <!-- ══ /SETUP WIZARD ═════════════════════════════════════════════ -->
 
   <!-- Bottom nav (móvil) — dentro del x-data para acceder al estado Alpine -->
   <nav class="bottom-nav">
@@ -1022,6 +1276,14 @@ function app() {
     searchMode: 'albums',
     expandedAlbum: null,
 
+    // Setup wizard
+    setupDone: null,      // null = cargando, false = necesita config, true = listo
+    localSetup: false,    // true = instalación Windows autónoma (install.ps1)
+    setupForm: { slskd_url: '', slskd_api_key: '', music_path: '' },
+    soulseekForm: { soulseek_username: '', soulseek_password: '', music_path: '' },
+    setupError: '',
+    setupSaving: false,
+
     get filteredAlbums() {
       if (!this.filterExt) return this.albums;
       return this.albums.filter(a => a.extension === this.filterExt);
@@ -1056,12 +1318,86 @@ function app() {
     },
 
     async init() {
-      await this.checkStatus();
-      setInterval(() => this.checkStatus(), 10000);
+      await this.checkSetup();
+      if (this.setupDone) {
+        await this.checkStatus();
+        setInterval(() => this.checkStatus(), 10000);
+      }
       // Auto-refresh downloads if on that view
       this.downloadPoll = setInterval(() => {
         if (this.view === 'downloads') this.loadDownloads();
       }, 3000);
+    },
+
+    async checkSetup() {
+      try {
+        const r = await fetch('/api/setup/status');
+        const data = await r.json();
+        this.localSetup = !!data.local_setup;
+        if (data.configured) {
+          this.setupDone = true;
+          if (data.slskd_url)   this.setupForm.slskd_url  = data.slskd_url;
+          if (data.music_path)  this.setupForm.music_path = data.music_path;
+          if (data.music_path)  this.soulseekForm.music_path = data.music_path;
+        } else {
+          this.setupDone = false;
+          if (data.music_path)  this.soulseekForm.music_path = data.music_path;
+        }
+      } catch {
+        this.setupDone = false;
+      }
+    },
+
+    // Modo remoto: el usuario ya tiene slskd corriendo en otro servidor
+    async saveSetup() {
+      this.setupError = '';
+      this.setupSaving = true;
+      try {
+        const r = await fetch('/api/setup/credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.setupForm)
+        });
+        const data = await r.json();
+        if (data.ok) {
+          this.setupDone = true;
+          await this.checkStatus();
+          setInterval(() => this.checkStatus(), 10000);
+          this.toast('✓ Configuración guardada');
+        } else {
+          this.setupError = data.error || 'Error desconocido';
+        }
+      } catch (e) {
+        this.setupError = 'No se pudo conectar con el servidor.';
+      } finally {
+        this.setupSaving = false;
+      }
+    },
+
+    // Modo local Windows: configura slskd automáticamente
+    async saveLocalSetup() {
+      this.setupError = '';
+      this.setupSaving = true;
+      try {
+        const r = await fetch('/api/setup/soulseek', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.soulseekForm)
+        });
+        const data = await r.json();
+        if (data.ok) {
+          this.setupDone = true;
+          await this.checkStatus();
+          setInterval(() => this.checkStatus(), 10000);
+          this.toast('✓ ¡Listo! Conectado a Soulseek');
+        } else {
+          this.setupError = data.error || 'Error desconocido';
+        }
+      } catch (e) {
+        this.setupError = 'No se pudo conectar con el servidor.';
+      } finally {
+        this.setupSaving = false;
+      }
     },
 
     async checkStatus() {
