@@ -433,64 +433,87 @@
   .state-Queued     { background: rgba(255,200,0,0.1); color: #fc6; }
   .state-Errored, .state-Cancelled { background: rgba(255,68,68,0.1); color: #f66; }
 
-  /* Library grid */
-  .album-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 16px;
-  }
-
-  .album-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-    transition: all 0.2s;
-    cursor: default;
-  }
-
-  .album-card:hover {
-    border-color: #333340;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  }
-
-  .album-cover {
-    width: 100%;
-    aspect-ratio: 1;
-    background: var(--surface2);
+  /* Setup modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 500;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 36px;
-    color: var(--border);
   }
 
-  .album-info { padding: 10px 12px; }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    width: 100%;
+    max-width: 440px;
+    margin: 16px;
+  }
 
-  .album-title {
-    font-size: 12px;
-    font-weight: 500;
+  .modal-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .modal-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .form-group { margin-bottom: 16px; }
+
+  .form-label {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .form-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 14px;
     color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
   }
 
-  .album-artist {
+  .form-input:focus { border-color: var(--accent); }
+  .form-input::placeholder { color: var(--muted); }
+
+  .form-hint {
     font-size: 11px;
     color: var(--muted);
-    margin-top: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    margin-top: 4px;
   }
 
-  .album-tracks {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-    margin-top: 6px;
+  .form-error {
+    font-size: 12px;
+    color: #ff4444;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: rgba(255,68,68,0.08);
+    border-radius: 4px;
+    border: 1px solid rgba(255,68,68,0.2);
   }
 
   /* Filter bar */
@@ -553,10 +576,10 @@
 
   /* ── RESPONSIVE MOBILE ─────────────────────────────────── */
   @media (max-width: 640px) {
-    /* Ocultar sidebar lateral */
+    /* Hide lateral sidebar */
     .sidebar { display: none; }
 
-    /* Bottom nav fijo */
+    /* Fixed bottom nav */
     .bottom-nav {
       display: flex !important;
       position: fixed;
@@ -567,11 +590,11 @@
       z-index: 100;
     }
 
-    /* Espacio extra abajo para que el contenido no quede bajo el nav */
+    /* Extra space at bottom so content isn't hidden under nav */
     .main { padding-bottom: 60px; }
     .content { padding: 16px; }
 
-    /* Topbar más compacto */
+    /* More compact topbar */
     .topbar {
       padding: 10px 12px;
       flex-wrap: wrap;
@@ -580,7 +603,7 @@
 
     .search-wrap { min-width: 0; max-width: 100%; }
 
-    /* Controles de modo y filtros en fila scrollable */
+    /* Mode + filter controls in scrollable row */
     .topbar-controls {
       display: flex;
       overflow-x: auto;
@@ -592,13 +615,13 @@
     }
     .topbar-controls::-webkit-scrollbar { display: none; }
 
-    /* Ocultar columnas no esenciales en tablas */
+    /* Hide non-essential columns in tables */
     .col-hide-mobile { display: none; }
 
-    /* Imágenes más pequeñas en resultados */
+    /* Smaller thumbnails in results */
     .album-thumb { width: 36px !important; height: 36px !important; }
 
-    /* Album grid: 2 columnas en móvil */
+    /* Album grid: 2 columns on mobile */
     .album-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   }
 
@@ -720,15 +743,41 @@
 
 <div class="app" x-data="app()">
 
-  <!-- Bottom nav (móvil) — dentro del x-data para acceder al estado Alpine -->
+  <!-- Setup modal -->
+  <div x-show="showSetup" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title">⚙ Setup</div>
+      <div class="modal-subtitle">
+        Enter your <strong style="color:var(--text)">slskd</strong> connection details to get started.
+        You can find the API key in your slskd configuration file.
+      </div>
+      <div class="form-group">
+        <label class="form-label">slskd URL</label>
+        <input class="form-input" type="url" placeholder="http://localhost:5030" x-model="setupUrl">
+        <div class="form-hint">The address where your slskd instance is running.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">API Key</label>
+        <input class="form-input" type="password" placeholder="your-api-key" x-model="setupKey">
+        <div class="form-hint">Set under <code style="color:var(--accent)">web.apiKeys</code> in slskd.yml.</div>
+      </div>
+      <div x-show="setupError" class="form-error" x-text="setupError"></div>
+      <button class="btn" style="width:100%; margin-top:8px;" @click="saveSetup()" :disabled="setupSaving || !setupUrl.trim() || !setupKey.trim()">
+        <span x-show="!setupSaving">CONNECT</span>
+        <span x-show="setupSaving">CONNECTING...</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bottom nav (mobile) — inside x-data to access Alpine state -->
   <nav class="bottom-nav">
     <button class="bottom-nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
       <span class="nav-icon">⌕</span>
-      <span>Buscar</span>
+      <span>Search</span>
     </button>
     <button class="bottom-nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
       <span class="nav-icon">↓</span>
-      <span>Descargas</span>
+      <span>Downloads</span>
       <span x-show="activeDownloads > 0" class="bottom-nav-badge" x-text="activeDownloads"></span>
     </button>
   </nav>
@@ -741,16 +790,16 @@
     </div>
     <nav class="nav">
       <div class="nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
-        <span class="nav-icon">⌕</span> Buscar
+        <span class="nav-icon">⌕</span> Search
       </div>
       <div class="nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
-        <span class="nav-icon">↓</span> Descargas
+        <span class="nav-icon">↓</span> Downloads
         <span x-show="activeDownloads > 0" class="badge" x-text="activeDownloads" style="margin-left:auto"></span>
       </div>
     </nav>
     <div class="status-bar">
       <span class="status-dot" :class="{ connected: connected }"></span>
-      <span x-text="connected ? 'CONECTADO' : 'DESCONECTADO'"></span>
+      <span x-text="connected ? 'CONNECTED' : 'DISCONNECTED'"></span>
     </div>
   </aside>
 
@@ -766,22 +815,22 @@
             <input
               class="search-input"
               type="text"
-              placeholder="Artista, álbum, canción..."
+              placeholder="Artist, album, song..."
               x-model="query"
               @keydown.enter="doSearch()"
             >
           </div>
           <button class="btn" @click="doSearch()" :disabled="searching || !query.trim()">
-            <span x-show="!searching">BUSCAR</span>
-            <span x-show="searching">BUSCANDO...</span>
+            <span x-show="!searching">SEARCH</span>
+            <span x-show="searching">SEARCHING...</span>
           </button>
-          <button x-show="searchId" class="btn-ghost" @click="stopSearch()">DETENER</button>
+          <button x-show="searchId" class="btn-ghost" @click="stopSearch()">STOP</button>
 
           <!-- Mode toggle + Filters (scrollable row en móvil) -->
           <div class="topbar-controls">
             <div class="mode-toggle">
-              <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'">ÁLBUMES</button>
-              <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'">CANCIONES</button>
+              <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'">ALBUMS</button>
+              <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'">SONGS</button>
             </div>
             <div style="display:flex; gap:6px;">
               <button class="filter-btn" :class="{ active: filterExt === '' }" @click="filterExt = ''">TODOS</button>
@@ -795,30 +844,30 @@
           <!-- Searching spinner -->
           <div x-show="searching" class="searching-indicator">
             <div class="spinner"></div>
-            <span>Buscando en la red... <span x-text="albums.length"></span> álbumes</span>
+            <span>Searching the network... <span x-text="albums.length"></span> albums</span>
           </div>
 
           <!-- Empty state -->
           <div x-show="!searching && albums.length === 0 && !searchId" class="empty-state">
             <div class="empty-state-icon">⌕</div>
-            <div class="empty-state-text">Buscá un artista o álbum para empezar</div>
+            <div class="empty-state-text">Search for an artist or album to get started</div>
           </div>
 
           <!-- Albums view -->
           <div x-show="searchMode === 'albums' && filteredAlbums.length > 0">
             <div class="section-header">
-              <span class="section-title">ÁLBUMES ENCONTRADOS</span>
-              <span class="badge" x-text="filteredAlbums.length + ' álbumes'"></span>
+              <span class="section-title">ALBUMS FOUND</span>
+              <span class="badge" x-text="filteredAlbums.length + ' albums'"></span>
             </div>
             <div class="results-wrap">
               <table class="results-table">
                 <thead>
                   <tr>
-                    <th>FORMATO</th>
-                    <th>ÁLBUM / CARPETA</th>
-                    <th class="col-hide-mobile">CALIDAD</th>
+                    <th>FORMAT</th>
+                    <th>ALBUM / FOLDER</th>
+                    <th class="col-hide-mobile">QUALITY</th>
                     <th class="col-hide-mobile">TRACKS</th>
-                    <th class="col-hide-mobile">TAMAÑO</th>
+                    <th class="col-hide-mobile">SIZE</th>
                     <th class="col-hide-mobile">PEER</th>
                     <th class="col-hide-mobile">SLOT</th>
                     <th></th>
@@ -849,15 +898,15 @@
                         <span class="quality-muted" x-show="a.sample_rate"> · <span x-text="a.sample_rate ? (a.sample_rate/1000).toFixed(1) : ''"></span>kHz</span>
                         <span class="quality-muted" x-show="a.bit_depth"> · <span x-text="a.bit_depth"></span>bit</span>
                       </td>
-                      <td class="quality-cell quality-muted col-hide-mobile" x-text="a.track_count + ' tracks'"></td>
+                      <td class="quality-cell col-hide-mobile" x-text="a.track_count + ' tracks'"></td>
                       <td class="quality-cell quality-muted col-hide-mobile" x-text="formatSize(a.total_size)"></td>
                       <td class="peer-cell col-hide-mobile">
                         <div class="peer-speed" x-text="formatSpeed(a.upload_speed)"></div>
-                        <div class="peer-queue" x-show="a.queue_length > 0">cola: <span x-text="a.queue_length"></span></div>
+                        <div class="peer-queue" x-show="a.queue_length > 0">queue: <span x-text="a.queue_length"></span></div>
                       </td>
                       <td class="col-hide-mobile">
-                        <span x-show="a.free_slots" class="slot-free">● libre</span>
-                        <span x-show="!a.free_slots" class="slot-busy">○ ocupado</span>
+                        <span x-show="a.free_slots" class="slot-free">● free</span>
+                        <span x-show="!a.free_slots" class="slot-busy">○ busy</span>
                       </td>
                       <td style="white-space:nowrap;">
                         <span x-text="expandedAlbum === a.folder_path ? '▲' : '▼'" style="color:var(--muted); font-size:10px; margin-right:6px;"></span>
@@ -866,7 +915,7 @@
                           :class="{ downloading: downloadingFolders.has(a.folder_path) }"
                           @click.stop="downloadFolder(a)"
                           :disabled="downloadingFolders.has(a.folder_path)"
-                          x-text="downloadingFolders.has(a.folder_path) ? '✓ EN COLA' : '↓ DESCARGAR'"
+                          x-text="downloadingFolders.has(a.folder_path) ? '✓ QUEUED' : '↓ DOWNLOAD'"
                         ></button>
                       </td>
                     </tr>
@@ -898,18 +947,18 @@
           <!-- Songs view -->
           <div x-show="searchMode === 'songs' && flatSongs.length > 0">
             <div class="section-header">
-              <span class="section-title">CANCIONES ENCONTRADAS</span>
-              <span class="badge" x-text="flatSongs.length + ' canciones'"></span>
+              <span class="section-title">SONGS FOUND</span>
+              <span class="badge" x-text="flatSongs.length + ' songs'"></span>
             </div>
             <div class="results-wrap">
               <table class="results-table">
                 <thead>
                   <tr>
-                    <th>FORMATO</th>
-                    <th>CANCIÓN</th>
-                    <th>ÁLBUM</th>
-                    <th>CALIDAD</th>
-                    <th>TAMAÑO</th>
+                    <th>FORMAT</th>
+                    <th>SONG</th>
+                    <th>ALBUM</th>
+                    <th>QUALITY</th>
+                    <th>SIZE</th>
                     <th>PEER</th>
                     <th></th>
                   </tr>
@@ -933,13 +982,13 @@
                       <td class="quality-cell quality-muted" x-text="formatSize(s.size)"></td>
                       <td class="peer-cell">
                         <div class="peer-speed" x-text="formatSpeed(s.upload_speed)"></div>
-                        <div class="peer-queue" x-show="s.queue_length > 0">cola: <span x-text="s.queue_length"></span></div>
+                        <div class="peer-queue" x-show="s.queue_length > 0">queue: <span x-text="s.queue_length"></span></div>
                       </td>
                       <td>
                         <button
                           class="btn-download"
                           @click="downloadSingle(s.username, {filename: s.filename, size: s.size})"
-                        >↓ DESCARGAR</button>
+                        >↓ DOWNLOAD</button>
                       </td>
                     </tr>
                   </template>
@@ -955,14 +1004,14 @@
     <template x-if="view === 'downloads'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
         <div class="topbar">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">DESCARGAS ACTIVAS</span>
-          <span class="badge" x-text="downloads.length + ' archivos'" style="margin-left:auto"></span>
-          <button class="btn-ghost" @click="loadDownloads()">↺ ACTUALIZAR</button>
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">ACTIVE DOWNLOADS</span>
+          <span class="badge" x-text="downloads.length + ' files'" style="margin-left:auto"></span>
+          <button class="btn-ghost" @click="loadDownloads()">↺ REFRESH</button>
         </div>
         <div class="content">
           <div x-show="downloads.length === 0" class="empty-state">
             <div class="empty-state-icon">↓</div>
-            <div class="empty-state-text">No hay descargas activas</div>
+            <div class="empty-state-text">No active downloads</div>
           </div>
 
           <template x-for="(d, i) in downloads" :key="i">
@@ -972,7 +1021,7 @@
                 <span class="state-badge" :class="'state-' + d.state.split(',')[0].trim()" x-text="d.state.split(',')[0].trim()"></span>
               </div>
               <div class="download-meta">
-                <span x-text="'de: ' + d.username"></span>
+                <span x-text="'from: ' + d.username"></span>
                 <span x-text="formatSize(d.size)"></span>
                 <span x-show="d.speed > 0" x-text="formatSpeed(d.speed) + '/s'"></span>
                 <span x-show="d.percent > 0 && d.percent < 100" x-text="d.percent.toFixed(1) + '%'"></span>
@@ -1000,7 +1049,7 @@
 
 </div><!-- /app -->
 
-<!-- Bottom nav duplicado eliminado -->
+<!-- Bottom nav duplicate removed -->
 
 <script>
 function app() {
@@ -1014,13 +1063,16 @@ function app() {
     filterExt: '',
     downloads: [],
     downloadPoll: null,
-    libraryAlbums: [],
-    libraryLoading: false,
     connected: false,
     downloadingFolders: new Set(),
     toasts: [],
     searchMode: 'albums',
     expandedAlbum: null,
+    showSetup: false,
+    setupUrl: 'http://localhost:5030',
+    setupKey: '',
+    setupSaving: false,
+    setupError: '',
 
     get filteredAlbums() {
       if (!this.filterExt) return this.albums;
@@ -1056,12 +1108,46 @@ function app() {
     },
 
     async init() {
+      await this.checkSetup();
       await this.checkStatus();
       setInterval(() => this.checkStatus(), 10000);
       // Auto-refresh downloads if on that view
       this.downloadPoll = setInterval(() => {
         if (this.view === 'downloads') this.loadDownloads();
       }, 3000);
+    },
+
+    async checkSetup() {
+      try {
+        const r = await fetch('/api/setup/status');
+        const data = await r.json();
+        if (!data.configured) {
+          this.showSetup = true;
+        }
+      } catch { this.showSetup = true; }
+    },
+
+    async saveSetup() {
+      this.setupSaving = true;
+      this.setupError = '';
+      try {
+        const r = await fetch('/api/setup/credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slskd_url: this.setupUrl, slskd_api_key: this.setupKey })
+        });
+        const data = await r.json();
+        if (data.ok) {
+          this.showSetup = false;
+          await this.checkStatus();
+        } else {
+          this.setupError = data.error || 'Unknown error';
+        }
+      } catch(e) {
+        this.setupError = 'Network error: ' + e.message;
+      } finally {
+        this.setupSaving = false;
+      }
     },
 
     async checkStatus() {
@@ -1087,7 +1173,7 @@ function app() {
         this.searchId = data.search_id;
         this.pollResults();
       } catch(e) {
-        this.toast('Error al iniciar búsqueda', true);
+        this.toast('Error starting search', true);
         this.searching = false;
       }
     },
@@ -1133,14 +1219,14 @@ function app() {
           })
         });
         if (resp.ok) {
-          this.toast('↓ Descargando álbum: ' + a.folder_name + ' (' + a.track_count + ' tracks)');
+          this.toast('↓ Downloading album: ' + a.folder_name + ' (' + a.track_count + ' tracks)');
         } else {
-          this.toast('Error al iniciar descarga', true);
+          this.toast('Error starting download', true);
           this.downloadingFolders.delete(a.folder_path);
           this.downloadingFolders = new Set(this.downloadingFolders);
         }
       } catch(e) {
-        this.toast('Error de conexión', true);
+        this.toast('Connection error', true);
       }
     },
 
@@ -1155,10 +1241,10 @@ function app() {
           const name = file.filename.split('\\').pop().split('/').pop();
           this.toast('↓ ' + name);
         } else {
-          this.toast('Error al iniciar descarga', true);
+          this.toast('Error starting download', true);
         }
       } catch(e) {
-        this.toast('Error de conexión', true);
+        this.toast('Connection error', true);
       }
     },
 
@@ -1167,18 +1253,6 @@ function app() {
         const r = await fetch('/api/downloads/');
         this.downloads = await r.json();
       } catch(e) {}
-    },
-
-    async loadLibrary() {
-      this.libraryLoading = true;
-      try {
-        const r = await fetch('/api/library/albums');
-        this.libraryAlbums = await r.json();
-      } catch(e) {
-        this.toast('Error cargando librería', true);
-      } finally {
-        this.libraryLoading = false;
-      }
     },
 
     formatSize(bytes) {

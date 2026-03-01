@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
 import re
-from config import SLSKD_URL, SLSKD_API_KEY
+import config
 from collections import defaultdict, Counter
 
 
@@ -42,29 +42,30 @@ async def get_deezer_album_ranks(query: str) -> dict[str, int]:
 
 
 router = APIRouter()
-HEADERS = {"X-API-Key": SLSKD_API_KEY}
 
 class SearchRequest(BaseModel):
     query: str
 
 @router.post("/")
 async def search(body: SearchRequest):
+    headers = {"X-API-Key": config.SLSKD_API_KEY}
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{SLSKD_URL}/api/v0/searches",
-            headers=HEADERS,
+            f"{config.SLSKD_URL}/api/v0/searches",
+            headers=headers,
             json={"searchText": body.query, "fileLimit": 500}
         )
         if resp.status_code != 200:
-            raise HTTPException(500, "Error iniciando búsqueda")
+            raise HTTPException(500, "Error starting search")
         return {"search_id": resp.json()["id"]}
 
 @router.get("/{search_id}")
 async def get_results(search_id: str):
+    headers = {"X-API-Key": config.SLSKD_API_KEY}
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}/responses",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/searches/{search_id}/responses",
+            headers=headers
         )
         if resp.status_code != 200:
             return {"state": "Searching", "albums": [], "total": 0}
@@ -72,8 +73,8 @@ async def get_results(search_id: str):
         responses = resp.json()
 
         state_resp = await client.get(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/searches/{search_id}",
+            headers=headers
         )
         state = state_resp.json().get("state", "")
 
@@ -205,7 +206,7 @@ async def get_results(search_id: str):
 async def stop_search(search_id: str):
     async with httpx.AsyncClient() as client:
         await client.delete(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/searches/{search_id}",
+            headers={"X-API-Key": config.SLSKD_API_KEY}
         )
     return {"ok": True}

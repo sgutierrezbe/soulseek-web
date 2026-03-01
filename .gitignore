@@ -9,6 +9,9 @@ venv/
 # Env
 .env
 
+# Credentials (saved via setup UI)
+credentials.json
+
 # OS
 .DS_Store
 Thumbs.db
