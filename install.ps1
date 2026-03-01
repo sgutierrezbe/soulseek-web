@@ -48,14 +48,16 @@ Write-Step "Verificando Python 3.11+..."
 $python = $null
 foreach ($cmd in @("python", "python3", "py")) {
     if (Test-CommandExists $cmd) {
-        $ver = & $cmd --version 2>&1
-        if ($ver -match "(\d+)\.(\d+)") {
-            if ([int]$Matches[1] -gt 3 -or ([int]$Matches[1] -eq 3 -and [int]$Matches[2] -ge 11)) {
-                $python = $cmd
-                Write-Ok "$ver"
-                break
+        try {
+            $ver = & $cmd --version 2>&1
+            if ("$ver" -match "Python (\d+)\.(\d+)") {
+                if ([int]$Matches[1] -gt 3 -or ([int]$Matches[1] -eq 3 -and [int]$Matches[2] -ge 11)) {
+                    $python = $cmd
+                    Write-Ok "$ver"
+                    break
+                }
             }
-        }
+        } catch { <# alias de Microsoft Store u otro error, ignorar #> }
     }
 }
 
