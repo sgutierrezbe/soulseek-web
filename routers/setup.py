@@ -2,6 +2,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 import json
 import os
+import re
+import sys
 import time
 import httpx
 import subprocess
@@ -68,6 +70,40 @@ async def get_status():
         "local_setup": bool(local),
         "slskd_url":   creds["slskd_url"],
         "music_path":  creds["music_path"] or local.get("default_music_path", ""),
+        "platform":    "Windows" if sys.platform == "win32" else "Linux",
+    }
+
+
+# ── GET /api/setup/settings ──────────────────────────────────────────────────
+
+@router.get("/settings")
+async def get_settings():
+    creds = get_active_credentials()
+    local = load_local_setup()
+    soulseek_username = ""
+    soulseek_password = ""
+    if local:
+        slskd_config_path = local.get("slskd_config_path", "")
+        if slskd_config_path and os.path.exists(slskd_config_path):
+            try:
+                with open(slskd_config_path, encoding="utf-8") as f:
+                    content = f.read()
+                m = re.search(r'username:\s*"([^"]*)"', content)
+                if m:
+                    soulseek_username = m.group(1)
+                m = re.search(r'password:\s*"([^"]*)"', content)
+                if m:
+                    soulseek_password = m.group(1)
+            except Exception:
+                pass
+    return {
+        "platform":          "Windows" if sys.platform == "win32" else "Linux",
+        "local_setup":       bool(local),
+        "slskd_url":         creds["slskd_url"],
+        "slskd_api_key":     creds["slskd_api_key"],
+        "music_path":        creds["music_path"] or local.get("default_music_path", ""),
+        "soulseek_username": soulseek_username,
+        "soulseek_password": soulseek_password,
     }
 
 

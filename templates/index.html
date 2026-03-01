@@ -985,13 +985,17 @@
       <span>Descargas</span>
       <span x-show="activeDownloads > 0" class="bottom-nav-badge" x-text="activeDownloads"></span>
     </button>
+    <button class="bottom-nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; loadSettings()">
+      <span class="nav-icon">⚙</span>
+      <span>Ajustes</span>
+    </button>
   </nav>
 
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="logo">
       <div class="logo-title">SLSK//WEB</div>
-      <div class="logo-sub">soulseek client</div>
+      <div class="logo-sub" x-text="platform || 'soulseek client'">soulseek client</div>
     </div>
     <nav class="nav">
       <div class="nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
@@ -1000,6 +1004,9 @@
       <div class="nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
         <span class="nav-icon">↓</span> Descargas
         <span x-show="activeDownloads > 0" class="badge" x-text="activeDownloads" style="margin-left:auto"></span>
+      </div>
+      <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; loadSettings()">
+        <span class="nav-icon">⚙</span> Ajustes
       </div>
     </nav>
     <div class="status-bar">
@@ -1243,6 +1250,79 @@
       </div>
     </template>
 
+    <!-- Settings view -->
+    <template x-if="view === 'settings'">
+      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="topbar">
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">AJUSTES</span>
+          <span x-show="platform" x-text="platform" style="margin-left:8px; padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; background:rgba(200,255,0,0.08); color:var(--accent); border:1px solid rgba(200,255,0,0.2);"></span>
+        </div>
+        <div class="content" style="max-width:520px;">
+
+          <!-- Local mode: Soulseek account + music path -->
+          <template x-if="localSetup">
+            <div>
+              <div class="section-header" style="margin-bottom:20px;">
+                <span class="section-title">CUENTA SOULSEEK</span>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Usuario</label>
+                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" placeholder="usuario de Soulseek">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Contraseña</label>
+                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" placeholder="contraseña de Soulseek">
+              </div>
+              <div class="section-header" style="margin:24px 0 20px;">
+                <span class="section-title">DESCARGAS</span>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Carpeta de descargas</label>
+                <input class="wizard-input" type="text" x-model="settingsForm.music_path">
+              </div>
+              <div x-show="settingsError" class="wizard-error" x-text="settingsError"></div>
+              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;">[OK] CAMBIOS GUARDADOS</div>
+              <button class="wizard-btn" @click="saveSettings()" :disabled="settingsSaving">
+                <span x-show="!settingsSaving">GUARDAR CAMBIOS</span>
+                <span x-show="settingsSaving">GUARDANDO...</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- Remote mode: slskd connection + music path -->
+          <template x-if="!localSetup">
+            <div>
+              <div class="section-header" style="margin-bottom:20px;">
+                <span class="section-title">CONEXIÓN SLSKD</span>
+              </div>
+              <div class="field-group">
+                <label class="field-label">URL de slskd</label>
+                <input class="wizard-input" type="text" x-model="settingsForm.slskd_url">
+              </div>
+              <div class="field-group">
+                <label class="field-label">API Key</label>
+                <input class="wizard-input" type="text" x-model="settingsForm.slskd_api_key">
+              </div>
+              <div class="section-header" style="margin:24px 0 20px;">
+                <span class="section-title">DESCARGAS</span>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Carpeta de descargas</label>
+                <input class="wizard-input" type="text" x-model="settingsForm.music_path">
+              </div>
+              <div x-show="settingsError" class="wizard-error" x-text="settingsError"></div>
+              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;">[OK] CAMBIOS GUARDADOS</div>
+              <button class="wizard-btn" @click="saveSettings()" :disabled="settingsSaving">
+                <span x-show="!settingsSaving">GUARDAR CAMBIOS</span>
+                <span x-show="settingsSaving">VERIFICANDO...</span>
+              </button>
+            </div>
+          </template>
+
+        </div>
+      </div>
+    </template>
+
   </div><!-- /main -->
 
   <!-- Toasts -->
@@ -1279,10 +1359,17 @@ function app() {
     // Setup wizard
     setupDone: null,      // null = cargando, false = necesita config, true = listo
     localSetup: false,    // true = instalación Windows autónoma (install.ps1)
+    platform: '',
     setupForm: { slskd_url: '', slskd_api_key: '', music_path: '' },
     soulseekForm: { soulseek_username: '', soulseek_password: '', music_path: '' },
     setupError: '',
     setupSaving: false,
+
+    // Settings panel
+    settingsForm: { soulseek_username: '', soulseek_password: '', music_path: '', slskd_url: '', slskd_api_key: '' },
+    settingsSaving: false,
+    settingsError: '',
+    settingsOk: false,
 
     get filteredAlbums() {
       if (!this.filterExt) return this.albums;
@@ -1334,6 +1421,7 @@ function app() {
         const r = await fetch('/api/setup/status');
         const data = await r.json();
         this.localSetup = !!data.local_setup;
+        this.platform = data.platform || '';
         if (data.configured) {
           this.setupDone = true;
           if (data.slskd_url)   this.setupForm.slskd_url  = data.slskd_url;
@@ -1397,6 +1485,53 @@ function app() {
         this.setupError = 'No se pudo conectar con el servidor.';
       } finally {
         this.setupSaving = false;
+      }
+    },
+
+    async loadSettings() {
+      try {
+        const r = await fetch('/api/setup/settings');
+        const data = await r.json();
+        this.platform = data.platform || this.platform;
+        this.settingsForm.soulseek_username = data.soulseek_username || '';
+        this.settingsForm.soulseek_password = data.soulseek_password || '';
+        this.settingsForm.music_path = data.music_path || '';
+        this.settingsForm.slskd_url = data.slskd_url || '';
+        this.settingsForm.slskd_api_key = data.slskd_api_key || '';
+        this.settingsError = '';
+        this.settingsOk = false;
+      } catch {}
+    },
+
+    async saveSettings() {
+      this.settingsError = '';
+      this.settingsOk = false;
+      this.settingsSaving = true;
+      try {
+        const url  = this.localSetup ? '/api/setup/soulseek' : '/api/setup/credentials';
+        const body = this.localSetup
+          ? { soulseek_username: this.settingsForm.soulseek_username,
+              soulseek_password: this.settingsForm.soulseek_password,
+              music_path:        this.settingsForm.music_path }
+          : { slskd_url:     this.settingsForm.slskd_url,
+              slskd_api_key: this.settingsForm.slskd_api_key,
+              music_path:    this.settingsForm.music_path };
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (data.ok) {
+          this.settingsOk = true;
+          this.toast('[OK] Ajustes guardados');
+        } else {
+          this.settingsError = data.error || 'Error desconocido';
+        }
+      } catch {
+        this.settingsError = 'No se pudo conectar con el servidor.';
+      } finally {
+        this.settingsSaving = false;
       }
     },
 
