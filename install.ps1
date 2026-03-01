@@ -1,5 +1,5 @@
-# ──────────────────────────────────────────────────────────────────────────────
-#  soulseek-web — instalador para Windows (TOTALMENTE AUTÓNOMO)
+﻿# ------------------------------------------------------------------------------
+#  soulseek-web - instalador para Windows (TOTALMENTE AUTÓNOMO)
 #  Instala slskd (daemon Soulseek) + soulseek-web en un solo paso.
 #  Ejecutar en PowerShell:
 #    Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -7,7 +7,7 @@
 #
 #  O desde internet (una sola línea):
 #    Set-ExecutionPolicy Bypass -Scope Process -Force; irm https://raw.githubusercontent.com/sgutierrezbe/soulseek-web/main/install.ps1 | iex
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
 
@@ -19,12 +19,12 @@ $REPO           = "https://github.com/sgutierrezbe/soulseek-web.git"
 $PORT           = 8080
 $SLSKD_PORT     = 5030
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 
-function Write-Step  { param($msg) Write-Host "`n→ $msg" -ForegroundColor Cyan }
-function Write-Ok    { param($msg) Write-Host "  ✓ $msg" -ForegroundColor Green }
-function Write-Warn  { param($msg) Write-Host "  ⚠ $msg" -ForegroundColor Yellow }
-function Write-Fail  { param($msg) Write-Host "`n  ✗ $msg`n" -ForegroundColor Red; exit 1 }
+function Write-Step  { param($msg) Write-Host "`n>> $msg" -ForegroundColor Cyan }
+function Write-Ok    { param($msg) Write-Host "  [OK] $msg" -ForegroundColor Green }
+function Write-Warn  { param($msg) Write-Host "  [!] $msg" -ForegroundColor Yellow }
+function Write-Fail  { param($msg) Write-Host "`n  [!!] $msg`n" -ForegroundColor Red; exit 1 }
 
 function Test-CommandExists { param($cmd) return [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
 
@@ -32,16 +32,16 @@ function New-RandomApiKey {
     return ([System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N"))
 }
 
-# ── Banner ────────────────────────────────────────────────────────────────────
+# -- Banner --------------------------------------------------------------------
 
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "  ║         SLSK//WEB  —  Windows                   ║" -ForegroundColor Green
-Write-Host "  ║   Soulseek completo en tu PC, sin configurar    ║" -ForegroundColor Green
-Write-Host "  ╚══════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "  +--------------------------------------------------+" -ForegroundColor Green
+Write-Host "  |         SLSK//WEB  -  Windows                   |" -ForegroundColor Green
+Write-Host "  |   Soulseek completo en tu PC, sin configurar    |" -ForegroundColor Green
+Write-Host "  +--------------------------------------------------+" -ForegroundColor Green
 Write-Host ""
 
-# ── Verificar Python ──────────────────────────────────────────────────────────
+# -- Verificar Python ----------------------------------------------------------
 
 Write-Step "Verificando Python 3.11+..."
 
@@ -71,13 +71,13 @@ if (-not $python) {
     if (-not $python) {
         Write-Host ""
         Write-Host "  Descargá Python desde: https://www.python.org/downloads/" -ForegroundColor Yellow
-        Write-Host "  ⚠ Marcá 'Add Python to PATH' durante la instalación." -ForegroundColor Yellow
+        Write-Host "  [!] Marcá 'Add Python to PATH' durante la instalación." -ForegroundColor Yellow
         Write-Fail "Instalá Python 3.11+ y volvé a ejecutar este script."
     }
     Write-Ok "Python instalado"
 }
 
-# ── Verificar Git ─────────────────────────────────────────────────────────────
+# -- Verificar Git -------------------------------------------------------------
 
 Write-Step "Verificando Git..."
 
@@ -94,7 +94,7 @@ if (-not (Test-CommandExists "git")) {
 }
 Write-Ok "$(git --version)"
 
-# ── Descargar slskd ───────────────────────────────────────────────────────────
+# -- Descargar slskd -----------------------------------------------------------
 
 Write-Step "Descargando slskd (daemon de Soulseek)..."
 
@@ -132,7 +132,7 @@ if ($needsDownload) {
     }
 }
 
-# ── Generar API key y escribir config inicial de slskd ───────────────────────
+# -- Generar API key y escribir config inicial de slskd -----------------------
 
 Write-Step "Configurando slskd..."
 
@@ -185,7 +185,7 @@ New-Item -ItemType Directory -Force -Path $MUSIC_DIR | Out-Null
 Set-Content -Path $SLSKD_CONFIG -Value $slskdYml -Encoding UTF8
 Write-Ok "slskd.yml escrito"
 
-# ── Guardar local_setup.json para que soulseek-web sepa que está en modo local ─
+# -- Guardar local_setup.json para que soulseek-web sepa que está en modo local -
 
 $localSetup = @{
     local              = $true
@@ -197,7 +197,7 @@ $localSetup = @{
 } | ConvertTo-Json
 # Written after cloning the repo, see below
 
-# ── Clonar o actualizar soulseek-web ─────────────────────────────────────────
+# -- Clonar o actualizar soulseek-web -----------------------------------------
 
 Write-Step "Instalando soulseek-web en $INSTALL_DIR ..."
 
@@ -218,7 +218,7 @@ Set-Location $INSTALL_DIR
 Set-Content -Path "$INSTALL_DIR\local_setup.json" -Value $localSetup -Encoding UTF8
 Write-Ok "local_setup.json escrito"
 
-# ── Entorno virtual y dependencias Python ────────────────────────────────────
+# -- Entorno virtual y dependencias Python ------------------------------------
 
 Write-Step "Instalando dependencias Python..."
 
@@ -227,7 +227,7 @@ Write-Step "Instalando dependencias Python..."
 & ".\venv\Scripts\pip.exe" install --quiet -r requirements.txt
 Write-Ok "Dependencias instaladas"
 
-# ── Crear start.bat ───────────────────────────────────────────────────────────
+# -- Crear start.bat -----------------------------------------------------------
 
 Write-Step "Creando acceso directo..."
 
@@ -256,7 +256,7 @@ $lnk.Description      = "Iniciar Soulseek Web"
 $lnk.Save()
 Write-Ok "Acceso directo creado en el escritorio"
 
-# ── Primera ejecución ─────────────────────────────────────────────────────────
+# -- Primera ejecución ---------------------------------------------------------
 
 Write-Step "Iniciando slskd y soulseek-web por primera vez..."
 
@@ -264,12 +264,12 @@ Start-Process -FilePath $slskdExe -ArgumentList "--config `"$SLSKD_CONFIG`"" -Wi
 Start-Sleep -Seconds 2
 Start-Process -FilePath "$INSTALL_DIR\start.bat" -WindowStyle Normal
 
-# ── Resultado ─────────────────────────────────────────────────────────────────
+# -- Resultado -----------------------------------------------------------------
 
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "  ║   ✓  ¡Todo listo! slskd + soulseek-web instalados          ║" -ForegroundColor Green
-Write-Host "  ╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "  +--------------------------------------------------------------+" -ForegroundColor Green
+Write-Host "  |   [OK]  ¡Todo listo! slskd + soulseek-web instalados          |" -ForegroundColor Green
+Write-Host "  +--------------------------------------------------------------+" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Abrí el navegador en:" -ForegroundColor White
 Write-Host "      http://localhost:$PORT" -ForegroundColor Yellow
