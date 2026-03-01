@@ -1,10 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
-from config import SLSKD_URL, SLSKD_API_KEY
+import config
 
 router = APIRouter()
-HEADERS = {"X-API-Key": SLSKD_API_KEY}
+
+
+def _headers() -> dict:
+    return {"X-API-Key": config.SLSKD_API_KEY}
 
 
 class DownloadRequest(BaseModel):
@@ -22,8 +25,8 @@ class DownloadFolderRequest(BaseModel):
 async def start_download(body: DownloadRequest):
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
-            headers=HEADERS,
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
+            headers=_headers(),
             json=[{"filename": body.filename, "size": body.size}]
         )
         if resp.status_code not in (200, 201):
@@ -35,8 +38,8 @@ async def start_download(body: DownloadRequest):
 async def download_folder(body: DownloadFolderRequest):
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
-            headers=HEADERS,
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads/{body.username}",
+            headers=_headers(),
             json=[{"filename": f["filename"], "size": f["size"]} for f in body.files]
         )
         if resp.status_code not in (200, 201):
@@ -48,8 +51,8 @@ async def download_folder(body: DownloadFolderRequest):
 async def get_downloads():
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{SLSKD_URL}/api/v0/transfers/downloads",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads",
+            headers=_headers()
         )
         downloads = []
         for user_group in resp.json():
@@ -71,7 +74,7 @@ async def get_downloads():
 async def cancel_download(username: str, file_id: str):
     async with httpx.AsyncClient() as client:
         await client.delete(
-            f"{SLSKD_URL}/api/v0/transfers/downloads/{username}/{file_id}",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/transfers/downloads/{username}/{file_id}",
+            headers=_headers()
         )
     return {"ok": True}

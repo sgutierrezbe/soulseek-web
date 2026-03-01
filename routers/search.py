@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
 import re
-from config import SLSKD_URL, SLSKD_API_KEY
+import config
 from collections import defaultdict, Counter
 
 
@@ -42,7 +42,10 @@ async def get_deezer_album_ranks(query: str) -> dict[str, int]:
 
 
 router = APIRouter()
-HEADERS = {"X-API-Key": SLSKD_API_KEY}
+
+
+def _headers() -> dict:
+    return {"X-API-Key": config.SLSKD_API_KEY}
 
 class SearchRequest(BaseModel):
     query: str
@@ -51,8 +54,8 @@ class SearchRequest(BaseModel):
 async def search(body: SearchRequest):
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{SLSKD_URL}/api/v0/searches",
-            headers=HEADERS,
+            f"{config.SLSKD_URL}/api/v0/searches",
+            headers=_headers(),
             json={"searchText": body.query, "fileLimit": 500}
         )
         if resp.status_code != 200:
@@ -63,8 +66,8 @@ async def search(body: SearchRequest):
 async def get_results(search_id: str):
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}/responses",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/searches/{search_id}/responses",
+            headers=_headers()
         )
         if resp.status_code != 200:
             return {"state": "Searching", "albums": [], "total": 0}
@@ -72,8 +75,8 @@ async def get_results(search_id: str):
         responses = resp.json()
 
         state_resp = await client.get(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/searches/{search_id}",
+            headers=_headers()
         )
         state = state_resp.json().get("state", "")
 
@@ -205,7 +208,7 @@ async def get_results(search_id: str):
 async def stop_search(search_id: str):
     async with httpx.AsyncClient() as client:
         await client.delete(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}",
-            headers=HEADERS
+            f"{config.SLSKD_URL}/api/v0/searches/{search_id}",
+            headers=_headers()
         )
     return {"ok": True}
