@@ -122,16 +122,27 @@ async def cover_from_search(artist: str, album: str):
 async def cover_from_file(path: str):
     """Para librería local — usa arte embebido o cover.jpg"""
     import os
-    if not os.path.exists(path):
+    from config import MUSIC_PATH
+
+    # Reject traversal attempts: resolve the path and verify it stays under MUSIC_PATH
+    try:
+        resolved = os.path.realpath(path)
+        music_root = os.path.realpath(MUSIC_PATH)
+        if os.path.commonpath([resolved, music_root]) != music_root:
+            return Response(status_code=403)
+    except Exception:
+        return Response(status_code=400)
+
+    if not os.path.exists(resolved):
         return Response(status_code=404)
 
     # Intentar arte embebido
-    data, mime = get_embedded_cover(path)
+    data, mime = get_embedded_cover(resolved)
     if data:
         return Response(content=data, media_type=mime or "image/jpeg")
 
     # Fallback: cover.jpg en la carpeta
-    folder = Path(path).parent
+    folder = Path(resolved).parent
     for name in ["cover.jpg", "cover.png", "folder.jpg", "front.jpg", "Cover.jpg"]:
         cover_path = folder / name
         if cover_path.exists():
