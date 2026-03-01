@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Soulseek Web</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.min.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --surface: #111114;
+    --surface2: #18181d;
+    --border: #222228;
+    --accent: #c8ff00;
+    --accent2: #ff6b35;
+    --text: #e8e8f0;
+    --muted: #555566;
+    --flac: #c8ff00;
+    --mp3: #ff6b35;
+    --other: #8888aa;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  /* Layout */
+  .app { display: flex; height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 200px;
+    min-width: 200px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .logo {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 0.05em;
+  }
+
+  .nav { padding: 16px 0; flex: 1; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 24px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 400;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    user-select: none;
+  }
+
+  .nav-item:hover { color: var(--text); background: var(--surface2); }
+
+  .nav-item.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(200, 255, 0, 0.04);
+  }
+
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .status-bar {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #555;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .status-dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  /* Main content */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .topbar {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .search-wrap {
+    flex: 1;
+    position: relative;
+    max-width: 600px;
+  }
+
+  .search-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 16px 10px 40px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { background: #d4ff1a; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+
+  .btn-danger {
+    background: transparent;
+    color: #ff4444;
+    border: 1px solid #ff444433;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    transition: all 0.15s;
+  }
+
+  .btn-danger:hover { background: #ff444422; }
+
+  /* Content area */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+  }
+
+  .content::-webkit-scrollbar { width: 4px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Section header */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    background: var(--surface2);
+    color: var(--muted);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  /* Search results table */
+  .results-table { width: 100%; border-collapse: collapse; }
+
+  .results-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .results-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(34,34,40,0.5);
+    vertical-align: middle;
+  }
+
+  .results-table tr:hover td { background: var(--surface2); }
+
+  .ext-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+  }
+
+  .ext-FLAC { background: rgba(200,255,0,0.15); color: var(--flac); }
+  .ext-MP3  { background: rgba(255,107,53,0.15); color: var(--mp3); }
+  .ext-other { background: rgba(136,136,170,0.1); color: var(--other); }
+
+  .quality-cell { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text); }
+  .quality-muted { color: var(--muted); }
+
+  .filename-cell {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .peer-cell { font-family: 'Space Mono', monospace; font-size: 11px; }
+  .peer-speed { color: var(--text); }
+  .peer-queue { color: var(--muted); font-size: 10px; }
+
+  .slot-free { color: var(--accent); font-size: 10px; }
+  .slot-busy { color: var(--muted); font-size: 10px; }
+
+  .btn-download {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid rgba(200,255,0,0.3);
+    padding: 5px 12px;
+    border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .btn-download:hover { background: rgba(200,255,0,0.1); border-color: var(--accent); }
+  .btn-download.downloading { color: var(--muted); border-color: var(--border); cursor: default; }
+
+  /* State indicators */
+  .searching-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 40px 0;
+    justify-content: center;
+  }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--muted);
+  }
+
+  .empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-state-text { font-size: 13px; }
+
+  /* Downloads */
+  .download-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+
+  .download-item:hover { border-color: #333340; }
+
+  .download-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .download-filename {
+    font-size: 13px;
+    color: var(--text);
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .download-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 1px;
+    transition: width 0.5s ease;
+  }
+
+  .progress-fill.completed { background: var(--accent); }
+  .progress-fill.errored { background: #ff4444; }
+
+  .state-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .state-InProgress { background: rgba(200,255,0,0.1); color: var(--accent); }
+  .state-Completed  { background: rgba(100,200,100,0.1); color: #6fc; }
+  .state-Queued     { background: rgba(255,200,0,0.1); color: #fc6; }
+  .state-Errored, .state-Cancelled { background: rgba(255,68,68,0.1); color: #f66; }
+
+  /* Library grid */
+  .album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+  }
+
+  .album-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: all 0.2s;
+    cursor: default;
+  }
+
+  .album-card:hover {
+    border-color: #333340;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .album-cover {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: var(--border);
+  }
+
+  .album-info { padding: 10px 12px; }
+
+  .album-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .album-artist {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .album-tracks {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .filter-btn:hover { color: var(--text); border-color: #444; }
+  .filter-btn.active { background: rgba(200,255,0,0.1); color: var(--accent); border-color: rgba(200,255,0,0.3); }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--text);
+    max-width: 300px;
+    animation: slideIn 0.2s ease;
+    border-left: 3px solid var(--accent);
+  }
+
+  .toast.error { border-left-color: #ff4444; }
+
+  @keyframes slideIn {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* Scrollbar for results */
+  .results-wrap { overflow-x: auto; }
+
+  /* ── RESPONSIVE MOBILE ─────────────────────────────────── */
+  @media (max-width: 640px) {
+    /* Ocultar sidebar lateral */
+    .sidebar { display: none; }
+
+    /* Bottom nav fijo */
+    .bottom-nav {
+      display: flex !important;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 60px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      z-index: 100;
+    }
+
+    /* Espacio extra abajo para que el contenido no quede bajo el nav */
+    .main { padding-bottom: 60px; }
+    .content { padding: 16px; }
+
+    /* Topbar más compacto */
+    .topbar {
+      padding: 10px 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .search-wrap { min-width: 0; max-width: 100%; }
+
+    /* Controles de modo y filtros en fila scrollable */
+    .topbar-controls {
+      display: flex;
+      overflow-x: auto;
+      gap: 6px;
+      width: 100%;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .topbar-controls::-webkit-scrollbar { display: none; }
+
+    /* Ocultar columnas no esenciales en tablas */
+    .col-hide-mobile { display: none; }
+
+    /* Imágenes más pequeñas en resultados */
+    .album-thumb { width: 36px !important; height: 36px !important; }
+
+    /* Album grid: 2 columnas en móvil */
+    .album-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  }
+
+  /* Bottom nav (oculto en desktop) */
+  .bottom-nav {
+    display: none;
+  }
+
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: color 0.15s;
+    border: none;
+    background: none;
+    position: relative;
+    padding: 0;
+  }
+
+  .bottom-nav-item.active { color: var(--accent); }
+  .bottom-nav-item .nav-icon { font-size: 20px; }
+
+  .bottom-nav-badge {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 18px);
+    background: var(--accent);
+    color: #000;
+    font-size: 8px;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 1px 4px;
+    line-height: 1.4;
+  }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px;
+  }
+
+  .mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 5px 14px;
+    border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  .mode-btn:hover { color: var(--text); }
+  .mode-btn.active { background: var(--surface); color: var(--accent); }
+
+  /* Expandable track list */
+  .track-list {
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    padding: 4px 0;
+  }
+
+  .track-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 16px 5px 74px;
+    gap: 12px;
+    border-bottom: 1px solid rgba(34,34,40,0.4);
+  }
+
+  .track-row:last-child { border-bottom: none; }
+  .track-row:hover { background: var(--surface2); }
+
+  .track-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    width: 20px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .track-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  .track-size {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="app" x-data="app()">
+
+  <!-- Bottom nav (móvil) — dentro del x-data para acceder al estado Alpine -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
+      <span class="nav-icon">⌕</span>
+      <span>Buscar</span>
+    </button>
+    <button class="bottom-nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
+      <span class="nav-icon">↓</span>
+      <span>Descargas</span>
+      <span x-show="activeDownloads > 0" class="bottom-nav-badge" x-text="activeDownloads"></span>
+    </button>
+    <button class="bottom-nav-item" :class="{ active: view === 'library' }" @click="view = 'library'; loadLibrary()">
+      <span class="nav-icon">♫</span>
+      <span>Librería</span>
+    </button>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-title">SLSK//WEB</div>
+      <div class="logo-sub">soulseek client</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
+        <span class="nav-icon">⌕</span> Buscar
+      </div>
+      <div class="nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
+        <span class="nav-icon">↓</span> Descargas
+        <span x-show="activeDownloads > 0" class="badge" x-text="activeDownloads" style="margin-left:auto"></span>
+      </div>
+      <div class="nav-item" :class="{ active: view === 'library' }" @click="view = 'library'; loadLibrary()">
+        <span class="nav-icon">♫</span> Librería
+      </div>
+    </nav>
+    <div class="status-bar">
+      <span class="status-dot" :class="{ connected: connected }"></span>
+      <span x-text="connected ? 'CONECTADO' : 'DESCONECTADO'"></span>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Search view -->
+    <template x-if="view === 'search'">
+      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="topbar">
+          <div class="search-wrap">
+            <span class="search-icon">⌕</span>
+            <input
+              class="search-input"
+              type="text"
+              placeholder="Artista, álbum, canción..."
+              x-model="query"
+              @keydown.enter="doSearch()"
+            >
+          </div>
+          <button class="btn" @click="doSearch()" :disabled="searching || !query.trim()">
+            <span x-show="!searching">BUSCAR</span>
+            <span x-show="searching">BUSCANDO...</span>
+          </button>
+          <button x-show="searchId" class="btn-ghost" @click="stopSearch()">DETENER</button>
+
+          <!-- Mode toggle + Filters (scrollable row en móvil) -->
+          <div class="topbar-controls">
+            <div class="mode-toggle">
+              <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'">ÁLBUMES</button>
+              <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'">CANCIONES</button>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="filter-btn" :class="{ active: filterExt === '' }" @click="filterExt = ''">TODOS</button>
+              <button class="filter-btn" :class="{ active: filterExt === 'FLAC' }" @click="filterExt = 'FLAC'">FLAC</button>
+              <button class="filter-btn" :class="{ active: filterExt === 'MP3' }" @click="filterExt = 'MP3'">MP3</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="content">
+          <!-- Searching spinner -->
+          <div x-show="searching" class="searching-indicator">
+            <div class="spinner"></div>
+            <span>Buscando en la red... <span x-text="albums.length"></span> álbumes</span>
+          </div>
+
+          <!-- Empty state -->
+          <div x-show="!searching && albums.length === 0 && !searchId" class="empty-state">
+            <div class="empty-state-icon">⌕</div>
+            <div class="empty-state-text">Buscá un artista o álbum para empezar</div>
+          </div>
+
+          <!-- Albums view -->
+          <div x-show="searchMode === 'albums' && filteredAlbums.length > 0">
+            <div class="section-header">
+              <span class="section-title">ÁLBUMES ENCONTRADOS</span>
+              <span class="badge" x-text="filteredAlbums.length + ' álbumes'"></span>
+            </div>
+            <div class="results-wrap">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th>FORMATO</th>
+                    <th>ÁLBUM / CARPETA</th>
+                    <th class="col-hide-mobile">CALIDAD</th>
+                    <th class="col-hide-mobile">TRACKS</th>
+                    <th class="col-hide-mobile">TAMAÑO</th>
+                    <th class="col-hide-mobile">PEER</th>
+                    <th class="col-hide-mobile">SLOT</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <template x-for="(a, i) in filteredAlbums.slice(0, 200)" :key="a.folder_path + '::' + i">
+                  <tbody>
+                    <tr style="cursor:pointer;" @click="expandedAlbum = expandedAlbum === a.folder_path ? null : a.folder_path">
+                      <td>
+                        <span class="ext-badge" :class="'ext-' + (a.extension === 'FLAC' || a.extension === 'MP3' ? a.extension : 'other')" x-text="a.extension"></span>
+                      </td>
+                      <td>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                          <img
+                            :src="'/api/covers/search?artist=' + encodeURIComponent(a.artist_guess) + '&album=' + encodeURIComponent(a.folder_name)"
+                            class="album-thumb"
+                            style="width:44px; height:44px; object-fit:cover; border-radius:4px; background:var(--surface2); flex-shrink:0;"
+                            onerror="this.style.visibility='hidden'"
+                          >
+                          <div>
+                            <div class="filename-cell" :title="a.folder_path" x-text="a.folder_name"></div>
+                            <div style="font-size:10px; color:var(--muted); margin-top:2px;" x-text="a.artist_guess || a.username"></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="quality-cell col-hide-mobile">
+                        <span x-text="a.bitrate ? a.bitrate + ' kbps' : '—'"></span>
+                        <span class="quality-muted" x-show="a.sample_rate"> · <span x-text="a.sample_rate ? (a.sample_rate/1000).toFixed(1) : ''"></span>kHz</span>
+                        <span class="quality-muted" x-show="a.bit_depth"> · <span x-text="a.bit_depth"></span>bit</span>
+                      </td>
+                      <td class="quality-cell quality-muted col-hide-mobile" x-text="a.track_count + ' tracks'"></td>
+                      <td class="quality-cell quality-muted col-hide-mobile" x-text="formatSize(a.total_size)"></td>
+                      <td class="peer-cell col-hide-mobile">
+                        <div class="peer-speed" x-text="formatSpeed(a.upload_speed)"></div>
+                        <div class="peer-queue" x-show="a.queue_length > 0">cola: <span x-text="a.queue_length"></span></div>
+                      </td>
+                      <td class="col-hide-mobile">
+                        <span x-show="a.free_slots" class="slot-free">● libre</span>
+                        <span x-show="!a.free_slots" class="slot-busy">○ ocupado</span>
+                      </td>
+                      <td style="white-space:nowrap;">
+                        <span x-text="expandedAlbum === a.folder_path ? '▲' : '▼'" style="color:var(--muted); font-size:10px; margin-right:6px;"></span>
+                        <button
+                          class="btn-download"
+                          :class="{ downloading: downloadingFolders.has(a.folder_path) }"
+                          @click.stop="downloadFolder(a)"
+                          :disabled="downloadingFolders.has(a.folder_path)"
+                          x-text="downloadingFolders.has(a.folder_path) ? '✓ EN COLA' : '↓ DESCARGAR'"
+                        ></button>
+                      </td>
+                    </tr>
+                    <!-- Expanded track list -->
+                    <tr x-show="expandedAlbum === a.folder_path">
+                      <td colspan="8" style="padding:0;">
+                        <div class="track-list">
+                          <template x-for="(f, fi) in a.files" :key="fi">
+                            <div class="track-row">
+                              <span class="track-num" x-text="fi + 1"></span>
+                              <span class="track-name" x-text="f.filename.split('\\').pop().split('/').pop()"></span>
+                              <span class="track-size" x-text="formatSize(f.size)"></span>
+                              <button
+                                class="btn-download"
+                                style="padding:3px 10px; font-size:9px; flex-shrink:0;"
+                                @click.stop="downloadSingle(a.username, f)"
+                              >↓</button>
+                            </div>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </template>
+              </table>
+            </div>
+          </div>
+
+          <!-- Songs view -->
+          <div x-show="searchMode === 'songs' && flatSongs.length > 0">
+            <div class="section-header">
+              <span class="section-title">CANCIONES ENCONTRADAS</span>
+              <span class="badge" x-text="flatSongs.length + ' canciones'"></span>
+            </div>
+            <div class="results-wrap">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th>FORMATO</th>
+                    <th>CANCIÓN</th>
+                    <th>ÁLBUM</th>
+                    <th>CALIDAD</th>
+                    <th>TAMAÑO</th>
+                    <th>PEER</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(s, i) in flatSongs.slice(0, 500)" :key="i">
+                    <tr>
+                      <td>
+                        <span class="ext-badge" :class="'ext-' + (s.extension === 'FLAC' || s.extension === 'MP3' ? s.extension : 'other')" x-text="s.extension"></span>
+                      </td>
+                      <td>
+                        <div class="filename-cell" :title="s.filename" x-text="s.displayName"></div>
+                      </td>
+                      <td>
+                        <div style="font-size:12px; color:var(--text); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="s.folder_name"></div>
+                        <div style="font-size:10px; color:var(--muted); margin-top:2px;" x-text="s.artist_guess || s.username"></div>
+                      </td>
+                      <td class="quality-cell">
+                        <span x-text="s.bitrate ? s.bitrate + ' kbps' : '—'"></span>
+                      </td>
+                      <td class="quality-cell quality-muted" x-text="formatSize(s.size)"></td>
+                      <td class="peer-cell">
+                        <div class="peer-speed" x-text="formatSpeed(s.upload_speed)"></div>
+                        <div class="peer-queue" x-show="s.queue_length > 0">cola: <span x-text="s.queue_length"></span></div>
+                      </td>
+                      <td>
+                        <button
+                          class="btn-download"
+                          @click="downloadSingle(s.username, {filename: s.filename, size: s.size})"
+                        >↓ DESCARGAR</button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Downloads view -->
+    <template x-if="view === 'downloads'">
+      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="topbar">
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">DESCARGAS ACTIVAS</span>
+          <span class="badge" x-text="downloads.length + ' archivos'" style="margin-left:auto"></span>
+          <button class="btn-ghost" @click="loadDownloads()">↺ ACTUALIZAR</button>
+        </div>
+        <div class="content">
+          <div x-show="downloads.length === 0" class="empty-state">
+            <div class="empty-state-icon">↓</div>
+            <div class="empty-state-text">No hay descargas activas</div>
+          </div>
+
+          <template x-for="(d, i) in downloads" :key="i">
+            <div class="download-item">
+              <div class="download-header">
+                <div class="download-filename" :title="d.filename" x-text="d.filename"></div>
+                <span class="state-badge" :class="'state-' + d.state.split(',')[0].trim()" x-text="d.state.split(',')[0].trim()"></span>
+              </div>
+              <div class="download-meta">
+                <span x-text="'de: ' + d.username"></span>
+                <span x-text="formatSize(d.size)"></span>
+                <span x-show="d.speed > 0" x-text="formatSpeed(d.speed) + '/s'"></span>
+                <span x-show="d.percent > 0 && d.percent < 100" x-text="d.percent.toFixed(1) + '%'"></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill"
+                  :class="{ completed: d.state.includes('Completed'), errored: d.state.includes('Errored') }"
+                  :style="'width:' + (d.percent || 0) + '%'">
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+
+    <!-- Library view -->
+    <template x-if="view === 'library'">
+      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="topbar">
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">LIBRERÍA</span>
+          <span class="badge" x-text="libraryAlbums.length + ' álbumes'" style="margin-left:auto"></span>
+          <button class="btn-ghost" @click="loadLibrary()">↺ ACTUALIZAR</button>
+        </div>
+        <div class="content">
+          <div x-show="libraryAlbums.length === 0 && !libraryLoading" class="empty-state">
+            <div class="empty-state-icon">♫</div>
+            <div class="empty-state-text">No hay álbumes descargados aún</div>
+          </div>
+          <div x-show="libraryLoading" class="searching-indicator">
+            <div class="spinner"></div>
+            <span>Cargando librería...</span>
+          </div>
+          <div class="album-grid" x-show="!libraryLoading">
+            <template x-for="(a, i) in libraryAlbums" :key="i">
+              <div class="album-card">
+                <div class="album-cover" style="overflow:hidden;">
+                  <img
+                    :src="a.cover_path ? '/api/covers/local?path=' + encodeURIComponent(a.cover_path) : ''"
+                    style="width:100%; height:100%; object-fit:cover;"
+                    onerror="this.style.display='none'; this.parentElement.innerHTML='♫';"
+                    x-show="a.cover_path"
+                  >
+                  <span x-show="!a.cover_path">♫</span>
+                </div>
+                <div class="album-info">
+                  <div class="album-title" :title="a.album" x-text="a.album"></div>
+                  <div class="album-artist" x-text="a.artist"></div>
+                  <div class="album-tracks" x-text="a.track_count + ' tracks'"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+
+  </div><!-- /main -->
+
+  <!-- Toasts -->
+  <div class="toast-container">
+    <template x-for="(t, i) in toasts" :key="i">
+      <div class="toast" :class="{ error: t.error }" x-text="t.msg"></div>
+    </template>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Bottom nav duplicado eliminado -->
+
+<script>
+function app() {
+  return {
+    view: 'search',
+    query: '',
+    searching: false,
+    searchId: null,
+    searchPoll: null,
+    albums: [],
+    filterExt: '',
+    downloads: [],
+    downloadPoll: null,
+    libraryAlbums: [],
+    libraryLoading: false,
+    connected: false,
+    downloadingFolders: new Set(),
+    toasts: [],
+    searchMode: 'albums',
+    expandedAlbum: null,
+
+    get filteredAlbums() {
+      if (!this.filterExt) return this.albums;
+      return this.albums.filter(a => a.extension === this.filterExt);
+    },
+
+    get flatSongs() {
+      const songs = [];
+      for (const a of this.albums) {
+        for (const f of a.files) {
+          const name = f.filename.split('\\').pop().split('/').pop();
+          songs.push({
+            filename: f.filename,
+            displayName: name,
+            size: f.size,
+            extension: a.extension,
+            bitrate: a.bitrate,
+            username: a.username,
+            folder_name: a.folder_name,
+            artist_guess: a.artist_guess,
+            upload_speed: a.upload_speed,
+            free_slots: a.free_slots,
+            queue_length: a.queue_length,
+          });
+        }
+      }
+      if (this.filterExt) return songs.filter(s => s.extension === this.filterExt);
+      return songs;
+    },
+
+    get activeDownloads() {
+      return this.downloads.filter(d => d.state.includes('InProgress')).length;
+    },
+
+    async init() {
+      await this.checkStatus();
+      setInterval(() => this.checkStatus(), 10000);
+      // Auto-refresh downloads if on that view
+      this.downloadPoll = setInterval(() => {
+        if (this.view === 'downloads') this.loadDownloads();
+      }, 3000);
+    },
+
+    async checkStatus() {
+      try {
+        const r = await fetch('/api/downloads/');
+        this.connected = r.ok;
+      } catch { this.connected = false; }
+    },
+
+    async doSearch() {
+      if (!this.query.trim()) return;
+      this.stopSearch();
+      this.albums = [];
+      this.searching = true;
+
+      try {
+        const r = await fetch('/api/search/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: this.query })
+        });
+        const data = await r.json();
+        this.searchId = data.search_id;
+        this.pollResults();
+      } catch(e) {
+        this.toast('Error al iniciar búsqueda', true);
+        this.searching = false;
+      }
+    },
+
+    pollResults() {
+      this.searchPoll = setInterval(async () => {
+        if (!this.searchId) return;
+        try {
+          const r = await fetch('/api/search/' + this.searchId);
+          const data = await r.json();
+          this.albums = data.albums || [];
+          if (data.state && data.state.includes('Completed')) {
+            this.searching = false;
+            clearInterval(this.searchPoll);
+          }
+        } catch(e) {}
+      }, 1500);
+
+      setTimeout(() => {
+        this.searching = false;
+        clearInterval(this.searchPoll);
+      }, 30000);
+    },
+
+    stopSearch() {
+      clearInterval(this.searchPoll);
+      this.searching = false;
+      if (this.searchId) {
+        fetch('/api/search/' + this.searchId, { method: 'DELETE' });
+        this.searchId = null;
+      }
+    },
+
+    async downloadFolder(a) {
+      this.downloadingFolders = new Set([...this.downloadingFolders, a.folder_path]);
+      try {
+        const resp = await fetch('/api/downloads/folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: a.username,
+            files: a.files
+          })
+        });
+        if (resp.ok) {
+          this.toast('↓ Descargando álbum: ' + a.folder_name + ' (' + a.track_count + ' tracks)');
+        } else {
+          this.toast('Error al iniciar descarga', true);
+          this.downloadingFolders.delete(a.folder_path);
+          this.downloadingFolders = new Set(this.downloadingFolders);
+        }
+      } catch(e) {
+        this.toast('Error de conexión', true);
+      }
+    },
+
+    async downloadSingle(username, file) {
+      try {
+        const resp = await fetch('/api/downloads/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, filename: file.filename, size: file.size })
+        });
+        if (resp.ok) {
+          const name = file.filename.split('\\').pop().split('/').pop();
+          this.toast('↓ ' + name);
+        } else {
+          this.toast('Error al iniciar descarga', true);
+        }
+      } catch(e) {
+        this.toast('Error de conexión', true);
+      }
+    },
+
+    async loadDownloads() {
+      try {
+        const r = await fetch('/api/downloads/');
+        this.downloads = await r.json();
+      } catch(e) {}
+    },
+
+    async loadLibrary() {
+      this.libraryLoading = true;
+      try {
+        const r = await fetch('/api/library/albums');
+        this.libraryAlbums = await r.json();
+      } catch(e) {
+        this.toast('Error cargando librería', true);
+      } finally {
+        this.libraryLoading = false;
+      }
+    },
+
+    formatSize(bytes) {
+      if (!bytes) return '—';
+      if (bytes > 1e9) return (bytes/1e9).toFixed(2) + ' GB';
+      if (bytes > 1e6) return (bytes/1e6).toFixed(1) + ' MB';
+      return (bytes/1e3).toFixed(0) + ' KB';
+    },
+
+    formatSpeed(bps) {
+      if (!bps) return '—';
+      if (bps > 1e6) return (bps/1e6).toFixed(1) + ' MB/s';
+      if (bps > 1e3) return (bps/1e3).toFixed(0) + ' KB/s';
+      return bps + ' B/s';
+    },
+
+    toast(msg, error = false) {
+      this.toasts.push({ msg, error });
+      setTimeout(() => this.toasts.shift(), 3500);
+    }
+  }
+}
+</script>
+</body>
+</html>
