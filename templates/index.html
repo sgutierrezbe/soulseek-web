@@ -1293,6 +1293,18 @@
           <template x-if="!localSetup">
             <div>
               <div class="section-header" style="margin-bottom:20px;">
+                <span class="section-title">CUENTA SOULSEEK</span>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Usuario</label>
+                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" placeholder="usuario de Soulseek">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Contraseña</label>
+                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" placeholder="contraseña de Soulseek">
+                <div class="field-hint">Dejá en blanco para no cambiar.</div>
+              </div>
+              <div class="section-header" style="margin:24px 0 20px;">
                 <span class="section-title">CONEXIÓN SLSKD</span>
               </div>
               <div class="field-group">
@@ -1513,9 +1525,11 @@ function app() {
           ? { soulseek_username: this.settingsForm.soulseek_username,
               soulseek_password: this.settingsForm.soulseek_password,
               music_path:        this.settingsForm.music_path }
-          : { slskd_url:     this.settingsForm.slskd_url,
-              slskd_api_key: this.settingsForm.slskd_api_key,
-              music_path:    this.settingsForm.music_path };
+          : { slskd_url:          this.settingsForm.slskd_url,
+              slskd_api_key:      this.settingsForm.slskd_api_key,
+              music_path:         this.settingsForm.music_path,
+              soulseek_username:  this.settingsForm.soulseek_username,
+              soulseek_password:  this.settingsForm.soulseek_password };
         const r = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

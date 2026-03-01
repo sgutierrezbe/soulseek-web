@@ -83,6 +83,7 @@ async def get_settings():
     soulseek_username = ""
     soulseek_password = ""
     if local:
+        # Local Windows: read credentials from slskd.yml
         slskd_config_path = local.get("slskd_config_path", "")
         if slskd_config_path and os.path.exists(slskd_config_path):
             try:
@@ -96,6 +97,19 @@ async def get_settings():
                     soulseek_password = m.group(1)
             except Exception:
                 pass
+    elif creds["slskd_url"] and creds["slskd_api_key"]:
+        # Remote: fetch current username from slskd API
+        try:
+            async with httpx.AsyncClient(timeout=4) as client:
+                r = await client.get(
+                    f"{creds['slskd_url']}/api/v0/application",
+                    headers={"X-API-Key": creds["slskd_api_key"]},
+                )
+                if r.status_code == 200:
+                    data = r.json()
+                    soulseek_username = data.get("server", {}).get("username", "")
+        except Exception:
+            pass
     return {
         "platform":          "Windows" if sys.platform == "win32" else "Linux",
         "local_setup":       bool(local),
@@ -110,9 +124,11 @@ async def get_settings():
 # ── POST /api/setup/credentials  (modo remoto) ────────────────────────────────
 
 class CredentialsRequest(BaseModel):
-    slskd_url:    str
-    slskd_api_key: str
-    music_path:   str = ""
+    slskd_url:          str
+    slskd_api_key:      str
+    music_path:         str = ""
+    soulseek_username:  str = ""
+    soulseek_password:  str = ""
 
 
 @router.post("/credentials")
@@ -126,6 +142,13 @@ async def save_credentials(body: CredentialsRequest):
             )
             if resp.status_code not in (200, 204):
                 return {"ok": False, "error": "No se pudo conectar a slskd. Verificá la URL y el API key."}
+            # Update Soulseek credentials in slskd if provided
+            if body.soulseek_username and body.soulseek_password:
+                await client.put(
+                    f"{url}/api/v0/application/user",
+                    headers={"X-API-Key": body.slskd_api_key},
+                    json={"username": body.soulseek_username, "password": body.soulseek_password},
+                )
     except Exception as exc:
         return {"ok": False, "error": f"No se pudo alcanzar slskd: {exc}"}
 
