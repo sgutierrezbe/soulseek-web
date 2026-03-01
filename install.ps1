@@ -1,4 +1,4 @@
-﻿# ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #  soulseek-web - instalador para Windows (TOTALMENTE AUTÓNOMO)
 #  Instala slskd (daemon Soulseek) + soulseek-web en un solo paso.
 #  Ejecutar en PowerShell:
