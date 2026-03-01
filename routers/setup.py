@@ -120,7 +120,6 @@ async def save_soulseek(body: SoulseekRequest):
         return {"ok": False, "error": "Este endpoint solo está disponible en instalación local."}
 
     slskd_config_path = local.get("slskd_config_path", "")
-    slskd_task_name   = local.get("slskd_task_name", "SlskdDaemon")
     slskd_url         = local.get("slskd_url", "http://localhost:5030")
     slskd_api_key     = local.get("slskd_api_key", "")
     music_path        = body.music_path.strip() or local.get("default_music_path", "")
@@ -160,10 +159,20 @@ shares:
         return {"ok": False, "error": f"No se pudo escribir la config de slskd: {exc}"}
 
     # Reiniciar slskd para que tome las nuevas credenciales
+    slskd_exe_path = local.get("slskd_exe_path", "")
     try:
-        subprocess.run(["schtasks", "/End", "/TN", slskd_task_name], capture_output=True)
-        time.sleep(2)
-        subprocess.run(["schtasks", "/Run", "/TN", slskd_task_name], capture_output=True)
+        # Matar proceso slskd existente
+        subprocess.run(["taskkill", "/F", "/IM", "slskd.exe"], capture_output=True)
+        time.sleep(1)
+        # Relanzar en segundo plano si tenemos la ruta del ejecutable
+        if slskd_exe_path and os.path.exists(slskd_exe_path):
+            DETACHED = 0x00000008
+            CREATE_NEW = 0x00000200
+            subprocess.Popen(
+                [slskd_exe_path, "--config", slskd_config_path],
+                creationflags=DETACHED | CREATE_NEW,
+                close_fds=True,
+            )
     except Exception:
         pass  # En Linux falla silenciosamente, no es un problema
 

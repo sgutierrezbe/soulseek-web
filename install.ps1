@@ -18,8 +18,6 @@ $MUSIC_DIR      = "$env:USERPROFILE\Music\Soulseek Downloads"
 $REPO           = "https://github.com/sgutierrezbe/soulseek-web.git"
 $PORT           = 8080
 $SLSKD_PORT     = 5030
-$TASK_WEB       = "SoulseekWeb"
-$TASK_SLSKD     = "SlskdDaemon"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -196,10 +194,10 @@ $localSetup = @{
     slskd_url          = "http://localhost:$SLSKD_PORT"
     slskd_api_key      = $apiKey
     slskd_config_path  = $SLSKD_CONFIG
-    slskd_task_name    = $TASK_SLSKD
+    slskd_exe_path     = $slskdExe
     default_music_path = $MUSIC_DIR
 } | ConvertTo-Json
-# Se escribe DESPUÉS de clonar el repo, ver más abajo
+# Written after cloning the repo, see below
 
 # ── Clonar o actualizar soulseek-web ─────────────────────────────────────────
 
