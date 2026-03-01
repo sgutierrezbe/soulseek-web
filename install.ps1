@@ -60,14 +60,38 @@ foreach ($cmd in @("python", "python3", "py")) {
 }
 
 if (-not $python) {
-    Write-Warn "Python 3.11+ no encontrado. Intentando instalar con winget..."
+    Write-Warn "Python 3.11+ no encontrado. Intentando instalar..."
+
+    # Intento 1: winget
     if (Test-CommandExists "winget") {
+        Write-Host "  Instalando con winget..." -ForegroundColor Gray
         winget install --id Python.Python.3.12 -e --accept-source-agreements --accept-package-agreements
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
         foreach ($cmd in @("python", "py")) {
             if (Test-CommandExists $cmd) { $python = $cmd; break }
         }
     }
+
+    # Intento 2: descarga directa desde python.org
+    if (-not $python) {
+        try {
+            $pyVersion  = "3.12.9"
+            $pyUrl      = "https://www.python.org/ftp/python/$pyVersion/python-$pyVersion-amd64.exe"
+            $pyInst     = "$env:TEMP\python-installer.exe"
+            Write-Host "  Descargando Python $pyVersion desde python.org..." -ForegroundColor Gray
+            Invoke-WebRequest -Uri $pyUrl -OutFile $pyInst -UseBasicParsing
+            Write-Host "  Instalando Python (modo silencioso)..." -ForegroundColor Gray
+            Start-Process $pyInst -ArgumentList "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_launcher=1" -Wait
+            Remove-Item $pyInst -ErrorAction SilentlyContinue
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            foreach ($cmd in @("python", "py")) {
+                if (Test-CommandExists $cmd) { $python = $cmd; break }
+            }
+        } catch {
+            Write-Warn "No se pudo descargar Python automáticamente: $_"
+        }
+    }
+
     if (-not $python) {
         Write-Host ""
         Write-Host "  Descargá Python desde: https://www.python.org/downloads/" -ForegroundColor Yellow
@@ -82,11 +106,33 @@ if (-not $python) {
 Write-Step "Verificando Git..."
 
 if (-not (Test-CommandExists "git")) {
-    Write-Warn "Git no encontrado. Instalando con winget..."
+    Write-Warn "Git no encontrado. Intentando instalar..."
+
+    # Intento 1: winget
     if (Test-CommandExists "winget") {
+        Write-Host "  Instalando con winget..." -ForegroundColor Gray
         winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
     }
+
+    # Intento 2: descarga directa desde GitHub releases
+    if (-not (Test-CommandExists "git")) {
+        try {
+            Write-Host "  Descargando Git desde github.com/git-for-windows..." -ForegroundColor Gray
+            $gitRelease = Invoke-RestMethod "https://api.github.com/repos/git-for-windows/git/releases/latest" -TimeoutSec 15
+            $gitAsset   = $gitRelease.assets | Where-Object { $_.name -match "64-bit\.exe$" } | Select-Object -First 1
+            if (-not $gitAsset) { throw "No se encontró instalador de Git" }
+            $gitInst = "$env:TEMP\git-installer.exe"
+            Invoke-WebRequest -Uri $gitAsset.browser_download_url -OutFile $gitInst -UseBasicParsing
+            Write-Host "  Instalando Git (modo silencioso)..." -ForegroundColor Gray
+            Start-Process $gitInst -ArgumentList "/VERYSILENT", "/NORESTART", "/NOCANCEL", "/SP-", "/CLOSEAPPLICATIONS", "/COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh" -Wait
+            Remove-Item $gitInst -ErrorAction SilentlyContinue
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        } catch {
+            Write-Warn "No se pudo descargar Git automáticamente: $_"
+        }
+    }
+
     if (-not (Test-CommandExists "git")) {
         Write-Host "  Descargalo desde: https://git-scm.com/download/win" -ForegroundColor Yellow
         Write-Fail "Instalá Git y volvé a ejecutar este script."
