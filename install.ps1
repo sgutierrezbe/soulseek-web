@@ -29,11 +29,7 @@ function Write-Fail  { param($msg) Write-Host "`n  ✗ $msg`n" -ForegroundColor 
 function Test-CommandExists { param($cmd) return [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
 
 function New-RandomApiKey {
-    $bytes = New-Object byte[] 32
-    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    $rng.GetBytes($bytes)
-    $rng.Dispose()
-    return ($bytes | ForEach-Object { $_.ToString("x2") }) -join ""
+    return ([System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N"))
 }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
