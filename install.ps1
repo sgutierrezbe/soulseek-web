@@ -242,7 +242,8 @@ echo.
 start "" /b "$slskdExe" --config "$SLSKD_CONFIG"
 timeout /t 3 /nobreak >nul
 start "" "http://localhost:$PORT"
-call venv\Scripts\uvicorn.exe main:app --host 0.0.0.0 --port $PORT
+venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port $PORT
+pause
 "@
 Set-Content -Path "$INSTALL_DIR\start.bat" -Value $bat -Encoding ASCII
 
