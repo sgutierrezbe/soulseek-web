@@ -46,25 +46,30 @@ async def download_folder(body: DownloadFolderRequest):
 
 @router.get("/")
 async def get_downloads():
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{SLSKD_URL}/api/v0/transfers/downloads",
-            headers=HEADERS
-        )
-        downloads = []
-        for user_group in resp.json():
-            for directory in user_group.get("directories", []):
-                for file in directory.get("files", []):
-                    downloads.append({
-                        "username": user_group["username"],
-                        "filename": file["filename"].split("\\")[-1],
-                        "full_path": file["filename"],
-                        "state": file["state"],
-                        "percent": file.get("percentComplete", 0),
-                        "size": file.get("size", 0),
-                        "speed": file.get("averageSpeed", 0),
-                    })
-        return downloads
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                f"{SLSKD_URL}/api/v0/transfers/downloads",
+                headers=HEADERS
+            )
+            if resp.status_code not in (200, 201) or not resp.content:
+                return []
+            downloads = []
+            for user_group in resp.json():
+                for directory in user_group.get("directories", []):
+                    for file in directory.get("files", []):
+                        downloads.append({
+                            "username": user_group["username"],
+                            "filename": file["filename"].split("\\")[-1],
+                            "full_path": file["filename"],
+                            "state": file["state"],
+                            "percent": file.get("percentComplete", 0),
+                            "size": file.get("size", 0),
+                            "speed": file.get("averageSpeed", 0),
+                        })
+            return downloads
+    except Exception:
+        return []
 
 
 @router.delete("/{username}/{file_id}")

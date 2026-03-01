@@ -49,33 +49,39 @@ class SearchRequest(BaseModel):
 
 @router.post("/")
 async def search(body: SearchRequest):
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{SLSKD_URL}/api/v0/searches",
-            headers=HEADERS,
-            json={"searchText": body.query, "fileLimit": 500}
-        )
-        if resp.status_code != 200:
-            raise HTTPException(500, "Error iniciando búsqueda")
-        return {"search_id": resp.json()["id"]}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{SLSKD_URL}/api/v0/searches",
+                headers=HEADERS,
+                json={"searchText": body.query, "fileLimit": 500}
+            )
+            if resp.status_code != 200 or not resp.content:
+                raise HTTPException(500, "Error iniciando búsqueda")
+            return {"search_id": resp.json()["id"]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo conectar a slskd: {e}")
 
 @router.get("/{search_id}")
 async def get_results(search_id: str):
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}/responses",
-            headers=HEADERS
-        )
-        if resp.status_code != 200:
-            return {"state": "Searching", "albums": [], "total": 0}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{SLSKD_URL}/api/v0/searches/{search_id}/responses",
+                headers=HEADERS
+            )
+            if resp.status_code != 200 or not resp.content:
+                return {"state": "Searching", "albums": [], "total": 0}
 
-        responses = resp.json()
+            responses = resp.json()
 
-        state_resp = await client.get(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}",
-            headers=HEADERS
-        )
-        state = state_resp.json().get("state", "")
+            state_resp = await client.get(
+                f"{SLSKD_URL}/api/v0/searches/{search_id}",
+                headers=HEADERS
+            )
+            state = state_resp.json().get("state", "") if state_resp.content else ""
 
         # Agrupar archivos por carpeta (álbum)
         # Cada entrada: { username, folder_path, files: [...] }
@@ -200,6 +206,8 @@ async def get_results(search_id: str):
             "albums": albums,
             "total": len(albums)
         }
+    except Exception:
+        return {"state": "Searching", "albums": [], "total": 0}
 
 @router.delete("/{search_id}")
 async def stop_search(search_id: str):
