@@ -227,54 +227,10 @@ Write-Step "Instalando dependencias Python..."
 & ".\venv\Scripts\pip.exe" install --quiet -r requirements.txt
 Write-Ok "Dependencias instaladas"
 
-# ── Tareas de inicio automático ───────────────────────────────────────────────
+# ── Crear start.bat ───────────────────────────────────────────────────────────
 
-Write-Step "Registrando tareas de inicio automático..."
+Write-Step "Creando acceso directo..."
 
-$defaultSettings = New-ScheduledTaskSettingsSet `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 0) `
-    -RestartCount 5 `
-    -RestartInterval (New-TimeSpan -Seconds 30) `
-    -StartWhenAvailable
-
-$principal = New-ScheduledTaskPrincipal `
-    -UserId $env:USERNAME `
-    -LogonType Interactive `
-    -RunLevel Limited
-
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-
-# — Tarea slskd —
-Unregister-ScheduledTask -TaskName $TASK_SLSKD -Confirm:$false -ErrorAction SilentlyContinue
-
-# VBScript para lanzar slskd sin ventana
-$slskdVbs = @"
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run """$($slskdExe -replace '\\','\\')""" & " --config " & Chr(34) & "$($SLSKD_CONFIG -replace '\\','\\')" & Chr(34), 0, False
-"@
-Set-Content -Path "$SLSKD_DIR\launcher.vbs" -Value $slskdVbs -Encoding UTF8
-
-Register-ScheduledTask `
-    -TaskName $TASK_SLSKD `
-    -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$SLSKD_DIR\launcher.vbs`"") `
-    -Trigger $trigger `
-    -Settings $defaultSettings `
-    -Principal $principal `
-    -Description "slskd — daemon de Soulseek" | Out-Null
-
-Write-Ok "Tarea '$TASK_SLSKD' registrada"
-
-# — Tarea soulseek-web —
-Unregister-ScheduledTask -TaskName $TASK_WEB -Confirm:$false -ErrorAction SilentlyContinue
-
-$webVbs = @"
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.CurrentDirectory = "$($INSTALL_DIR -replace '\\','\\')"
-WshShell.Run """$($INSTALL_DIR -replace '\\','\\')\venv\Scripts\uvicorn.exe"" main:app --host 0.0.0.0 --port $PORT", 0, False
-"@
-Set-Content -Path "$INSTALL_DIR\launcher.vbs" -Value $webVbs -Encoding UTF8
-
-# Batch manual
 $bat = @"
 @echo off
 title Soulseek Web
@@ -283,30 +239,30 @@ echo.
 echo  SLSK//WEB corriendo en http://localhost:$PORT
 echo  Cerra esta ventana para detenerlo.
 echo.
+start "" /b "$slskdExe" --config "$SLSKD_CONFIG"
+timeout /t 3 /nobreak >nul
 start "" "http://localhost:$PORT"
 call venv\Scripts\uvicorn.exe main:app --host 0.0.0.0 --port $PORT
-pause
 "@
-Set-Content -Path "$INSTALL_DIR\start.bat" -Value $bat -Encoding UTF8
+Set-Content -Path "$INSTALL_DIR\start.bat" -Value $bat -Encoding ASCII
 
-Register-ScheduledTask `
-    -TaskName $TASK_WEB `
-    -Action (New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$INSTALL_DIR\launcher.vbs`"") `
-    -Trigger $trigger `
-    -Settings $defaultSettings `
-    -Principal $principal `
-    -Description "soulseek-web — UI web para Soulseek" | Out-Null
+# Acceso directo en el escritorio
+$WshShell = New-Object -ComObject WScript.Shell
+$desktop  = [System.Environment]::GetFolderPath("Desktop")
+$lnk      = $WshShell.CreateShortcut("$desktop\Soulseek Web.lnk")
+$lnk.TargetPath       = "$INSTALL_DIR\start.bat"
+$lnk.WorkingDirectory = $INSTALL_DIR
+$lnk.Description      = "Iniciar Soulseek Web"
+$lnk.Save()
+Write-Ok "Acceso directo creado en el escritorio"
 
-Write-Ok "Tarea '$TASK_WEB' registrada"
+# ── Primera ejecución ─────────────────────────────────────────────────────────
 
-# ── Iniciar ambos servicios ───────────────────────────────────────────────────
+Write-Step "Iniciando slskd y soulseek-web por primera vez..."
 
-Write-Step "Iniciando slskd y soulseek-web..."
-
-Start-ScheduledTask -TaskName $TASK_SLSKD
+Start-Process -FilePath $slskdExe -ArgumentList "--config `"$SLSKD_CONFIG`"" -WindowStyle Hidden
 Start-Sleep -Seconds 2
-Start-ScheduledTask -TaskName $TASK_WEB
-Start-Sleep -Seconds 3
+Start-Process -FilePath "$INSTALL_DIR\start.bat" -WindowStyle Normal
 
 # ── Resultado ─────────────────────────────────────────────────────────────────
 
@@ -321,12 +277,5 @@ Write-Host ""
 Write-Host "  Solo te va a pedir tu usuario y contraseña de Soulseek." -ForegroundColor White
 Write-Host "  (Si no tenés cuenta, creá una gratis en https://www.slsknet.org/)" -ForegroundColor Gray
 Write-Host ""
-Write-Host "  Ambos programas arrancan solos con Windows." -ForegroundColor White
+Write-Host "  Para iniciar la próxima vez, doble clic en 'Soulseek Web' en el escritorio." -ForegroundColor White
 Write-Host ""
-Write-Host "  Comandos útiles:" -ForegroundColor White
-Write-Host "    Stop-ScheduledTask  -TaskName $TASK_WEB   # detener UI" -ForegroundColor Gray
-Write-Host "    Stop-ScheduledTask  -TaskName $TASK_SLSKD # detener slskd" -ForegroundColor Gray
-Write-Host "    Start-ScheduledTask -TaskName $TASK_WEB   # iniciar UI" -ForegroundColor Gray
-Write-Host ""
-
-Start-Process "http://localhost:$PORT"
