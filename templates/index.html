@@ -1339,8 +1339,8 @@
         </div>
         <div class="content">
           <div x-show="downloads.length === 0" class="empty-state">
-            <div class="empty-state-icon" x-text="t('noDownloads')">
-            <div class="empty-state-text">No hay descargas</div>
+            <div class="empty-state-icon">↓</div>
+            <div class="empty-state-text" x-text="t('noDownloads')"></div>
           </div>
 
           <template x-for="(g, gi) in downloads" :key="g.username + '::' + g.directory">
@@ -1361,8 +1361,8 @@
                 <div class="dl-group-info">
                   <div class="dl-group-name" :title="g.folder_name" x-text="g.folder_name"></div>
                   <div class="dl-group-meta">
-                    <span x-text="g.username"></span>t('fileUnit') : t('filesUnit')
-                    <span x-text="g.files.length + ' ' + (g.files.length === 1 ? 'archivo' : 'archivos')"></span>
+                    <span x-text="g.username"></span>
+                    <span x-text="g.files.length + ' ' + (g.files.length === 1 ? t('fileUnit') : t('filesUnit'))"></span>
                     <span x-show="g.total_size > 0" x-text="formatSize(g.total_size)"></span>
                     <span x-show="g.speed > 0" x-text="formatSpeed(g.speed) + '/s'"></span>
                   </div>
@@ -1376,8 +1376,8 @@
 
                 <!-- State + delete -->
                 <div class="dl-group-actions" @click.stop>
-                  <span class="state-badge" :class="'state-' + g.state.s x-text="t('delete')">[0].trim()" x-text="stateLabel(g.state)"></span>
-                  <button class="dl-btn-delete" @click="deleteFolder(g)">✕ BORRAR</button>
+                  <span class="state-badge" :class="'state-' + g.state.split(',')[0].trim()" x-text="stateLabel(g.state)"></span>
+                  <button class="dl-btn-delete" @click="deleteFolder(g)" x-text="t('delete')"></button>
                 </div>
               </div>
 
