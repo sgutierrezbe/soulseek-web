@@ -192,7 +192,7 @@ async def cover_from_folder(folder_name: str):
 
 @router.get("/trending")
 async def get_trending():
-    """Devuelve los álbumes en tendencia según los charts de Deezer."""
+    """Devuelve los álbumes en tendencia según el chart de iTunes US (Apple RSS)."""
     cache_key = "__trending__"
     cached = cover_cache.get(cache_key)
     if cached and time.time() - cached["ts"] < 3600:
@@ -201,20 +201,24 @@ async def get_trending():
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
             resp = await client.get(
-                "https://api.deezer.com/chart/0/albums",
-                params={"limit": 24}
+                "https://itunes.apple.com/us/rss/topalbums/limit=24/json"
             )
-            raw = resp.json().get("data", [])
+            entries = resp.json().get("feed", {}).get("entry", [])
     except Exception:
         return JSONResponse([])
 
     albums = []
-    for item in raw:
-        artist = item.get("artist", {}).get("name", "")
-        title  = item.get("title", "")
-        cover  = item.get("cover_xl") or item.get("cover_big") or item.get("cover_medium") or ""
-        if title and cover:
-            albums.append({"title": title, "artist": artist, "cover_url": cover})
+    for item in entries:
+        try:
+            artist = item["im:artist"]["label"]
+            title  = item["im:name"]["label"]
+            # imagen viene en 170x170, escalar a 600x600
+            raw_img = item["im:image"][-1]["label"]
+            cover = re.sub(r'\d+x\d+bb', '600x600bb', raw_img)
+            if title and cover:
+                albums.append({"title": title, "artist": artist, "cover_url": cover})
+        except (KeyError, IndexError):
+            continue
 
     cover_cache[cache_key] = {"ts": time.time(), "data": albums}
     return JSONResponse(albums)
