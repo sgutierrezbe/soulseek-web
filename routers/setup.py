@@ -7,9 +7,12 @@ import sys
 import time
 import httpx
 import subprocess
+import threading
 
 CREDENTIALS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "credentials.json")
 LOCAL_SETUP_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "local_setup.json")
+VERSION_FILE     = os.path.join(os.path.dirname(os.path.dirname(__file__)), "VERSION")
+BASE_DIR         = os.path.dirname(os.path.dirname(__file__))
 
 router = APIRouter()
 
@@ -270,3 +273,87 @@ shares:
 
     _apply_to_modules(slskd_url, slskd_api_key, music_path)
     return {"ok": True}
+
+
+# ── GET /api/setup/version ────────────────────────────────────────────────────
+
+@router.get("/version")
+async def get_version():
+    version = "unknown"
+    try:
+        with open(VERSION_FILE) as f:
+            version = f.read().strip()
+    except Exception:
+        pass
+
+    commit = ""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=BASE_DIR, capture_output=True, text=True, timeout=5
+        )
+        commit = result.stdout.strip()
+    except Exception:
+        pass
+
+    return {"version": version, "commit": commit, "platform": "Windows" if sys.platform == "win32" else "Linux"}
+
+
+# ── POST /api/setup/update ────────────────────────────────────────────────────
+
+@router.post("/update")
+async def do_update():
+    """Pull latest code and reinstall dependencies. Restarts the service on Linux."""
+    is_windows = sys.platform == "win32"
+
+    # Determine pip executable
+    venv_pip = os.path.join(BASE_DIR, "venv", "Scripts" if is_windows else "bin", "pip")
+    pip_cmd  = venv_pip if os.path.exists(venv_pip) else "pip"
+
+    try:
+        pull = subprocess.run(
+            ["git", "pull"],
+            cwd=BASE_DIR, capture_output=True, text=True, timeout=60
+        )
+        pull_out = pull.stdout.strip() + pull.stderr.strip()
+    except Exception as e:
+        return {"ok": False, "error": f"git pull falló: {e}"}
+
+    try:
+        pip = subprocess.run(
+            [pip_cmd, "install", "-q", "-r", os.path.join(BASE_DIR, "requirements.txt")],
+            cwd=BASE_DIR, capture_output=True, text=True, timeout=120
+        )
+        pip_out = pip.stdout.strip() + pip.stderr.strip()
+    except Exception as e:
+        return {"ok": False, "error": f"pip install falló: {e}"}
+
+    # Read new version after pull
+    new_version = "unknown"
+    try:
+        with open(VERSION_FILE) as f:
+            new_version = f.read().strip()
+    except Exception:
+        pass
+
+    already_latest = "Already up to date" in pull_out or "Ya está actualizado" in pull_out
+
+    if not is_windows:
+        # Restart systemd service after 1.5 s so the response can be delivered
+        def _restart():
+            time.sleep(1.5)
+            try:
+                subprocess.run(["systemctl", "restart", "soulseek-web"],
+                               capture_output=True, timeout=10)
+            except Exception:
+                pass
+        if not already_latest:
+            threading.Thread(target=_restart, daemon=True).start()
+
+    return {
+        "ok": True,
+        "already_latest": already_latest,
+        "version": new_version,
+        "pull_output": pull_out[:400],
+        "needs_restart": is_windows and not already_latest,
+    }

@@ -1464,6 +1464,29 @@
             </div>
           </template>
 
+          <!-- Actualización -->
+          <div style="margin-top:32px; padding-top:24px; border-top:1px solid var(--border);">
+            <div class="section-header" style="margin-bottom:16px;">
+              <span class="section-title">ACTUALIZACIÓN</span>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted);">VERSIÓN ACTUAL</span>
+              <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); font-weight:700;" x-text="appVersion || '—'"></span>
+              <span x-show="appCommit" style="font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); opacity:0.6;" x-text="'(' + appCommit + ')'"></span>
+            </div>
+
+            <div x-show="updateLog" style="background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:10px 14px; margin-bottom:14px; font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); white-space:pre-wrap;" x-text="updateLog"></div>
+            <div x-show="updateError" class="wizard-error" x-text="updateError"></div>
+            <div x-show="updateNeedsRestart" style="color:#fc6; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; margin-bottom:12px;">[!] Actualizacion descargada. Cerrá y volvé a abrir la aplikacion para aplicarla.</div>
+
+            <button class="wizard-btn" @click="triggerUpdate()" :disabled="updating"
+              style="background:transparent; border:1px solid rgba(200,255,0,0.2); color:var(--accent);">
+              <span x-show="!updating">↑ ACTUALIZAR A ÚLTIMA VERSIÓN</span>
+              <span x-show="updating">ACTUALIZANDO...</span>
+            </button>
+          </div>
+
         </div>
       </div>
     </template>
@@ -1517,6 +1540,14 @@ function app() {
     settingsError: '',
     settingsOk: false,
 
+    // Update
+    appVersion: '',
+    appCommit: '',
+    updating: false,
+    updateLog: '',
+    updateError: '',
+    updateNeedsRestart: false,
+
     get filteredAlbums() {
       if (!this.filterExt) return this.albums;
       return this.albums.filter(a => a.extension === this.filterExt);
@@ -1552,6 +1583,7 @@ function app() {
 
     async init() {
       await this.checkSetup();
+      this.loadVersion();
       if (this.setupDone) {
         await this.checkStatus();
         setInterval(() => this.checkStatus(), 10000);
@@ -1631,6 +1663,48 @@ function app() {
         this.setupError = 'No se pudo conectar con el servidor.';
       } finally {
         this.setupSaving = false;
+      }
+    },
+
+    async loadVersion() {
+      try {
+        const r = await fetch('/api/setup/version');
+        const d = await r.json();
+        this.appVersion = d.version;
+        this.appCommit  = d.commit;
+      } catch(e) {}
+    },
+
+    async triggerUpdate() {
+      this.updating = true;
+      this.updateLog = '';
+      this.updateError = '';
+      this.updateNeedsRestart = false;
+      try {
+        const r = await fetch('/api/setup/update', { method: 'POST' });
+        const d = await r.json();
+        if (!d.ok) {
+          this.updateError = d.error || 'Error desconocido';
+          return;
+        }
+        if (d.already_latest) {
+          this.updateLog = '✓ Ya tenés la última versión (' + (d.version || this.appVersion) + ')';
+        } else {
+          this.updateLog = (d.pull_output || '') + '\n✓ Actualizado a ' + (d.version || '?');
+          if (d.needs_restart) {
+            this.updateNeedsRestart = true;
+          } else {
+            this.toast('✓ Actualizado — reiniciando...');
+            // Server will restart; reconnect after a few seconds
+            await new Promise(r => setTimeout(r, 4000));
+            window.location.reload();
+          }
+        }
+        this.appVersion = d.version || this.appVersion;
+      } catch(e) {
+        this.updateError = 'Error de conexión. El servidor puede estar reiniciando — recargá la página en unos segundos.';
+      } finally {
+        this.updating = false;
       }
     },
 
