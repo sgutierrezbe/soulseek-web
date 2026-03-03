@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Soulseek Web</title>
+<link rel="icon" type="image/png" href="/static/logo.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.min.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -61,8 +62,26 @@
   }
 
   .logo {
-    padding: 28px 24px 20px;
+    padding: 20px 24px 18px;
     border-bottom: 1px solid var(--border);
+  }
+
+  .logo-img {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    margin-bottom: 8px;
+    filter: drop-shadow(0 0 6px rgba(200,255,0,0.25));
+  }
+
+  .wizard-logo-img {
+    height: 80px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 16px;
+    filter: drop-shadow(0 0 12px rgba(200,255,0,0.35));
   }
 
   .logo-title {
@@ -943,7 +962,9 @@
   <!-- ══ SETUP WIZARD ══════════════════════════════════════════════ -->
   <div class="wizard-overlay" x-show="setupDone === false" x-cloak>
     <div class="wizard-card">
-      <div class="wizard-logo">SLSK//WEB</div>
+      <img src="/static/logo.png" alt="SLSK//WEB" class="wizard-logo-img"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+      <div class="wizard-logo" style="display:none">SLSK//WEB</div>
       <div class="wizard-sub">Primera configuración</div>
 
       <!-- ── MODO LOCAL: instalación Windows autónoma (install.ps1) ── -->
@@ -1086,7 +1107,9 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="logo">
-      <div class="logo-title">SLSK//WEB</div>
+      <img src="/static/logo.png" alt="SLSK//WEB" class="logo-img"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+      <div class="logo-title" style="display:none">SLSK//WEB</div>
       <div class="logo-sub" x-text="platform || 'soulseek client'">soulseek client</div>
     </div>
     <nav class="nav">
