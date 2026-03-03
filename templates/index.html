@@ -1332,10 +1332,10 @@
     <!-- Downloads view -->
     <template x-if="view === 'downloads'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar"> x-text="t('downloadsTitle')"></span>
+        <div class="topbar">
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;" x-text="t('downloadsTitle')"></span>
           <span class="badge" x-text="downloads.length + ' ' + (downloads.length === 1 ? t('albumUnit') : t('albumsUnit'))" style="margin-left:auto"></span>
-          <button class="btn-ghost" @click="loadDownloads()" x-text="t('refresh')">h === 1 ? ' álbum' : ' álbumes')" style="margin-left:auto"></span>
-          <button class="btn-ghost" @click="loadDownloads()">↺ ACTUALIZAR</button>
+          <button class="btn-ghost" @click="loadDownloads()" x-text="t('refresh')"></button>
         </div>
         <div class="content">
           <div x-show="downloads.length === 0" class="empty-state">
@@ -1411,8 +1411,8 @@
     <!-- Settings view -->
     <template x-if="view === 'settings'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar"> x-text="t('settingsTitle')">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">AJUSTES</span>
+        <div class="topbar">
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;" x-text="t('settingsTitle')"></span>
           <span x-show="platform" x-text="platform" style="margin-left:8px; padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; background:rgba(200,255,0,0.08); color:var(--accent); border:1px solid rgba(200,255,0,0.2);"></span>
         </div>
         <div class="content" style="max-width:520px;">
@@ -1421,45 +1421,59 @@
           <template x-if="localSetup">
             <div>
               <div class="section-header" style="margin-bottom:20px;">
-                <span class="section-title">CUENTA SOULSEEK</span>
+                <span class="section-title" x-text="t('soulseekAccount')"></span>
               </div>
               <div class="field-group">
-                <label class="field-label">Usuario</label>
-                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" placeholder="usuario de Soulseek">
+                <label class="field-label" x-text="t('usernameLabel')"></label>
+                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" :placeholder="t('usernameLabel').toLowerCase()">
               </div>
               <div class="field-group">
-                <label class="field-label">Contraseña</label>
-                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" placeholder="contraseña de Soulseek">
+                <label class="field-label" x-text="t('passwordLabel')"></label>
+                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" :placeholder="t('passwordLabel').toLowerCase()">
               </div>
               <div class="section-header" style="margin:24px 0 20px;">
-                <span class="section-title">DESCARGAS</span>
+                <span class="section-title" x-text="t('downloadsSection')"></span>
               </div>
               <div class="field-group">
-                <label class="field-label">Carpeta de descargas</label>
+                <label class="field-label" x-text="t('downloadFolder')"></label>
                 <input class="wizard-input" type="text" x-model="settingsForm.music_path">
               </div>
               <div x-show="settingsError" class="wizard-error" x-text="settingsError"></div>
-              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;">[OK] CAMBIOS GUARDADOS</div>
+              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;" x-text="t('changesSaved')"></div>
               <button class="wizard-btn" @click="saveSettings()" :disabled="settingsSaving">
-                <span x-show="!settingsSaving">GUARDAR CAMBIOS</span>
-                <span x-show="settingsSaving">GUARDANDO...</span>
+                <span x-show="!settingsSaving" x-text="t('saveChanges')"></span>
+                <span x-show="settingsSaving" x-text="t('saving')"></span>
               </button>
 
-              <!-- Advanced Search toggle -->
+              <!-- Advanced Search + Language toggles -->
               <div class="section-header" style="margin:32px 0 16px; padding-top:24px; border-top:1px solid var(--border);">
-                <span class="section-title">BÚSQUEDA</span>
+                <span class="section-title" x-text="t('searchSection')"></span>
               </div>
               <div class="field-group" style="flex-direction:row; align-items:center; justify-content:space-between; gap:16px;">
                 <div style="flex:1;">
-                  <label class="field-label">Advanced Search</label>
-                  <div class="field-hint">Retorna todos los resultados sin filtrar ni ordenar. Útil para encontrar contenido específico que no aparece en la búsqueda normal.</div>
+                  <label class="field-label" x-text="t('advSearchLabel')"></label>
+                  <div class="field-hint" x-text="t('advSearchHint')"></div>
                 </div>
-                <button @click="advancedSearch = !advancedSearch; saveAdvancedSearch()"
+                <button @click="advancedSearch = !advancedSearch; savePreferences()"
                   style="flex-shrink:0; min-width:54px; padding:6px 14px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="advancedSearch
-                    ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);'
-                    : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
+                  :style="advancedSearch ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
                   x-text="advancedSearch ? 'ON' : 'OFF'"></button>
+              </div>
+
+              <div class="section-header" style="margin:24px 0 16px; padding-top:20px; border-top:1px solid var(--border);">
+                <span class="section-title" x-text="t('langSection')"></span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button @click="setLang('es')"
+                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
+                  :style="lang === 'es' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
+                  🇦🇷 ES
+                </button>
+                <button @click="setLang('en')"
+                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
+                  :style="lang === 'en' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
+                  🇬🇧 EN
+                </button>
               </div>
             </div>
           </template>
@@ -1468,22 +1482,22 @@
           <template x-if="!localSetup">
             <div>
               <div class="section-header" style="margin-bottom:20px;">
-                <span class="section-title">CUENTA SOULSEEK</span>
+                <span class="section-title" x-text="t('soulseekAccount')"></span>
               </div>
               <div class="field-group">
-                <label class="field-label">Usuario</label>
-                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" placeholder="usuario de Soulseek">
+                <label class="field-label" x-text="t('usernameLabel')"></label>
+                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" :placeholder="t('usernameLabel').toLowerCase()">
               </div>
               <div class="field-group">
-                <label class="field-label">Contraseña</label>
-                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" placeholder="contraseña de Soulseek">
-                <div class="field-hint">Dejá en blanco para no cambiar.</div>
+                <label class="field-label" x-text="t('passwordLabel')"></label>
+                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" :placeholder="t('passwordLabel').toLowerCase()">
+                <div class="field-hint" x-text="t('passwordHint')"></div>
               </div>
               <div class="section-header" style="margin:24px 0 20px;">
-                <span class="section-title">CONEXIÓN SLSKD</span>
+                <span class="section-title" x-text="t('slskdConnection')"></span>
               </div>
               <div class="field-group">
-                <label class="field-label">URL de slskd</label>
+                <label class="field-label" x-text="t('slskdUrlLabel')"></label>
                 <input class="wizard-input" type="text" x-model="settingsForm.slskd_url">
               </div>
               <div class="field-group">
@@ -1491,34 +1505,48 @@
                 <input class="wizard-input" type="text" x-model="settingsForm.slskd_api_key">
               </div>
               <div class="section-header" style="margin:24px 0 20px;">
-                <span class="section-title">DESCARGAS</span>
+                <span class="section-title" x-text="t('downloadsSection')"></span>
               </div>
               <div class="field-group">
-                <label class="field-label">Carpeta de descargas</label>
+                <label class="field-label" x-text="t('downloadFolder')"></label>
                 <input class="wizard-input" type="text" x-model="settingsForm.music_path">
               </div>
               <div x-show="settingsError" class="wizard-error" x-text="settingsError"></div>
-              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;">[OK] CAMBIOS GUARDADOS</div>
+              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;" x-text="t('changesSaved')"></div>
               <button class="wizard-btn" @click="saveSettings()" :disabled="settingsSaving">
-                <span x-show="!settingsSaving">GUARDAR CAMBIOS</span>
-                <span x-show="settingsSaving">VERIFICANDO...</span>
+                <span x-show="!settingsSaving" x-text="t('saveChanges')"></span>
+                <span x-show="settingsSaving" x-text="t('verifying')"></span>
               </button>
 
-              <!-- Advanced Search toggle -->
+              <!-- Advanced Search + Language toggles -->
               <div class="section-header" style="margin:32px 0 16px; padding-top:24px; border-top:1px solid var(--border);">
-                <span class="section-title">BÚSQUEDA</span>
+                <span class="section-title" x-text="t('searchSection')"></span>
               </div>
               <div class="field-group" style="flex-direction:row; align-items:center; justify-content:space-between; gap:16px;">
                 <div style="flex:1;">
-                  <label class="field-label">Advanced Search</label>
-                  <div class="field-hint">Retorna todos los resultados sin filtrar ni ordenar. Útil para encontrar contenido específico que no aparece en la búsqueda normal.</div>
+                  <label class="field-label" x-text="t('advSearchLabel')"></label>
+                  <div class="field-hint" x-text="t('advSearchHint')"></div>
                 </div>
-                <button @click="advancedSearch = !advancedSearch; saveAdvancedSearch()"
+                <button @click="advancedSearch = !advancedSearch; savePreferences()"
                   style="flex-shrink:0; min-width:54px; padding:6px 14px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="advancedSearch
-                    ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);'
-                    : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
+                  :style="advancedSearch ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
                   x-text="advancedSearch ? 'ON' : 'OFF'"></button>
+              </div>
+
+              <div class="section-header" style="margin:24px 0 16px; padding-top:20px; border-top:1px solid var(--border);">
+                <span class="section-title" x-text="t('langSection')"></span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button @click="setLang('es')"
+                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
+                  :style="lang === 'es' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
+                  🇦🇷 ES
+                </button>
+                <button @click="setLang('en')"
+                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
+                  :style="lang === 'en' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
+                  🇬🇧 EN
+                </button>
               </div>
             </div>
           </template>
@@ -1526,23 +1554,25 @@
           <!-- Actualización -->
           <div style="margin-top:32px; padding-top:24px; border-top:1px solid var(--border);">
             <div class="section-header" style="margin-bottom:16px;">
-              <span class="section-title">ACTUALIZACIÓN</span>
+              <span class="section-title" x-text="t('updateSection')"></span>
             </div>
 
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted);">VERSIÓN ACTUAL</span>
+              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted);" x-text="t('currentVersion')"></span>
               <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); font-weight:700;" x-text="appVersion || '—'"></span>
               <span x-show="appCommit" style="font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); opacity:0.6;" x-text="'(' + appCommit + ')'"></span>
             </div>
 
             <div x-show="updateLog" style="background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:10px 14px; margin-bottom:14px; font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); white-space:pre-wrap;" x-text="updateLog"></div>
             <div x-show="updateError" class="wizard-error" x-text="updateError"></div>
-            <div x-show="updateNeedsRestart" style="color:#fc6; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; margin-bottom:12px;">[!] Actualizacion descargada. Cerrá y volvé a abrir la aplikacion para aplicarla.</div>
+            <div x-show="updateNeedsRestart" style="color:#fc6; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; margin-bottom:12px;" x-text="t('updateDownloaded')"></div>
 
             <button class="wizard-btn" @click="triggerUpdate()" :disabled="updating"
-              style="background:transparent; border:1px solid rgba(200,255,0,0.2); color:var(--accent);">
-              <span x-show="!updating">↑ ACTUALIZAR A ÚLTIMA VERSIÓN</span>
-              <span x-show="updating">ACTUALIZANDO...</span>
+              :style="alreadyLatest
+                ? 'background:rgba(200,255,0,0.06); border:1px solid rgba(200,255,0,0.15); color:var(--accent); opacity:0.7;'
+                : 'background:transparent; border:1px solid rgba(200,255,0,0.2); color:var(--accent);'">
+              <span x-show="!updating" x-text="alreadyLatest ? t('upToDate') : t('updateBtn')"></span>
+              <span x-show="updating" x-text="t('updatingBtn')"></span>
             </button>
           </div>
 
