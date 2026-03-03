@@ -1091,16 +1091,16 @@
   <nav class="bottom-nav">
     <button class="bottom-nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
       <span class="nav-icon">⌕</span>
-      <span>Buscar</span>
+      <span x-text="t('navSearch')"></span>
     </button>
     <button class="bottom-nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
       <span class="nav-icon">↓</span>
-      <span>Descargas</span>
+      <span x-text="t('navDownloads')"></span>
       <span x-show="activeDownloads > 0" class="bottom-nav-badge" x-text="activeDownloads"></span>
     </button>
     <button class="bottom-nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; loadSettings()">
       <span class="nav-icon">⚙</span>
-      <span>Ajustes</span>
+      <span x-text="t('navSettings')"></span>
     </button>
   </nav>
 
@@ -1114,19 +1114,19 @@
     </div>
     <nav class="nav">
       <div class="nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
-        <span class="nav-icon">⌕</span> Buscar
+        <span class="nav-icon">⌕</span> <span x-text="t('navSearch')"></span>
       </div>
       <div class="nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
-        <span class="nav-icon">↓</span> Descargas
+        <span class="nav-icon">↓</span> <span x-text="t('navDownloads')"></span>
         <span x-show="activeDownloads > 0" class="badge" x-text="activeDownloads" style="margin-left:auto"></span>
       </div>
       <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; loadSettings()">
-        <span class="nav-icon">⚙</span> Ajustes
+        <span class="nav-icon">⚙</span> <span x-text="t('navSettings')"></span>
       </div>
     </nav>
     <div class="status-bar">
       <span class="status-dot" :class="{ connected: connected }"></span>
-      <span x-text="connected ? 'CONECTADO' : 'DESCONECTADO'"></span>
+      <span x-text="connected ? t('connected') : t('disconnected')"></span>
     </div>
   </aside>
 
@@ -1142,25 +1142,25 @@
             <input
               class="search-input"
               type="text"
-              placeholder="Artista, álbum, canción..."
+              :placeholder="t('searchPlaceholder')"
               x-model="query"
               @keydown.enter="doSearch()"
             >
           </div>
           <button class="btn" @click="doSearch()" :disabled="searching || !query.trim()">
-            <span x-show="!searching">BUSCAR</span>
-            <span x-show="searching">BUSCANDO...</span>
+            <span x-show="!searching" x-text="t('searchBtn')"></span>
+            <span x-show="searching" x-text="t('searchingBtn')"></span>
           </button>
-          <button x-show="searchId" class="btn-ghost" @click="stopSearch()">DETENER</button>
+          <button x-show="searchId" class="btn-ghost" @click="stopSearch()" x-text="t('stopBtn')"></button>
 
           <!-- Mode toggle + Filters (scrollable row en móvil) -->
           <div class="topbar-controls">
             <div class="mode-toggle">
-              <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'">ÁLBUMES</button>
-              <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'">CANCIONES</button>
+              <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'" x-text="t('albumsMode')"></button>
+              <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'" x-text="t('songsMode')"></button>
             </div>
             <div style="display:flex; gap:6px; align-items:center;">
-              <button class="filter-btn" :class="{ active: filterExt === '' }" @click="filterExt = ''">TODOS</button>
+              <button class="filter-btn" :class="{ active: filterExt === '' }" @click="filterExt = ''" x-text="t('allFilter')"></button>
               <button class="filter-btn" :class="{ active: filterExt === 'FLAC' }" @click="filterExt = 'FLAC'">FLAC</button>
               <button class="filter-btn" :class="{ active: filterExt === 'MP3' }" @click="filterExt = 'MP3'">MP3</button>
               <span x-show="advancedSearch" style="padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; background:rgba(200,255,0,0.12); color:var(--accent); border:1px solid rgba(200,255,0,0.35);">ADV</span>
@@ -1172,30 +1172,30 @@
           <!-- Searching spinner -->
           <div x-show="searching" class="searching-indicator">
             <div class="spinner"></div>
-            <span>Buscando en la red... <span x-text="albums.length"></span> álbumes</span>
+            <span><span x-text="t('searchingNet')"></span> <span x-text="albums.length"></span> <span x-text="t('albumsUnit')"></span></span>
           </div>
 
           <!-- Empty state -->
           <div x-show="!searching && albums.length === 0 && !searchId" class="empty-state">
             <div class="empty-state-icon">⌕</div>
-            <div class="empty-state-text">Buscá un artista o álbum para empezar</div>
+            <div class="empty-state-text" x-text="t('emptySearch')"></div>
           </div>
 
           <!-- Albums view -->
           <div x-show="searchMode === 'albums' && filteredAlbums.length > 0">
             <div class="section-header">
-              <span class="section-title">ÁLBUMES ENCONTRADOS</span>
-              <span class="badge" x-text="filteredAlbums.length + ' álbumes'"></span>
+              <span class="section-title" x-text="t('albumsFound')"></span>
+              <span class="badge" x-text="filteredAlbums.length + ' ' + (filteredAlbums.length === 1 ? t('albumUnit') : t('albumsUnit'))"></span>
             </div>
             <div class="results-wrap">
               <table class="results-table">
                 <thead>
                   <tr>
-                    <th>FORMATO</th>
-                    <th>ÁLBUM / CARPETA</th>
-                    <th class="col-hide-mobile">CALIDAD</th>
+                    <th x-text="t('colFormat')"></th>
+                    <th x-text="t('colAlbum')"></th>
+                    <th class="col-hide-mobile" x-text="t('colQuality')"></th>
                     <th class="col-hide-mobile">TRACKS</th>
-                    <th class="col-hide-mobile">TAMAÑO</th>
+                    <th class="col-hide-mobile" x-text="t('colSize')"></th>
                     <th class="col-hide-mobile">PEER</th>
                     <th class="col-hide-mobile">SLOT</th>
                     <th></th>
@@ -1230,11 +1230,11 @@
                       <td class="quality-cell quality-muted col-hide-mobile" x-text="formatSize(a.total_size)"></td>
                       <td class="peer-cell col-hide-mobile">
                         <div class="peer-speed" x-text="formatSpeed(a.upload_speed)"></div>
-                        <div class="peer-queue" x-show="a.queue_length > 0">cola: <span x-text="a.queue_length"></span></div>
+                        <div class="peer-queue" x-show="a.queue_length > 0"><span x-text="t('queueLabel')"></span>: <span x-text="a.queue_length"></span></div>
                       </td>
                       <td class="col-hide-mobile">
-                        <span x-show="a.free_slots" class="slot-free">● libre</span>
-                        <span x-show="!a.free_slots" class="slot-busy">○ ocupado</span>
+                        <span x-show="a.free_slots" class="slot-free" x-text="t('free')"></span>
+                        <span x-show="!a.free_slots" class="slot-busy" x-text="t('busy')"></span>
                       </td>
                       <td style="white-space:nowrap;">
                         <span x-text="expandedAlbum === a.folder_path ? '▲' : '▼'" style="color:var(--muted); font-size:10px; margin-right:6px;"></span>
@@ -1243,7 +1243,7 @@
                           :class="{ downloading: downloadingFolders.has(a.folder_path) }"
                           @click.stop="downloadFolder(a)"
                           :disabled="downloadingFolders.has(a.folder_path)"
-                          x-text="downloadingFolders.has(a.folder_path) ? '✓ EN COLA' : '↓ DESCARGAR'"
+                          x-text="downloadingFolders.has(a.folder_path) ? t('queued') : t('download')"
                         ></button>
                       </td>
                     </tr>
@@ -1275,18 +1275,18 @@
           <!-- Songs view -->
           <div x-show="searchMode === 'songs' && flatSongs.length > 0">
             <div class="section-header">
-              <span class="section-title">CANCIONES ENCONTRADAS</span>
-              <span class="badge" x-text="flatSongs.length + ' canciones'"></span>
+              <span class="section-title" x-text="t('songsFound')"></span>
+              <span class="badge" x-text="flatSongs.length + ' ' + (flatSongs.length === 1 ? t('songUnit') : t('songsUnit'))"></span>
             </div>
             <div class="results-wrap">
               <table class="results-table">
                 <thead>
                   <tr>
-                    <th>FORMATO</th>
-                    <th>CANCIÓN</th>
-                    <th>ÁLBUM</th>
-                    <th>CALIDAD</th>
-                    <th>TAMAÑO</th>
+                    <th x-text="t('colFormat')"></th>
+                    <th x-text="t('colSong')"></th>
+                    <th x-text="t('colAlbumShort')"></th>
+                    <th x-text="t('colQuality')"></th>
+                    <th x-text="t('colSize')"></th>
                     <th>PEER</th>
                     <th></th>
                   </tr>
@@ -1310,13 +1310,14 @@
                       <td class="quality-cell quality-muted" x-text="formatSize(s.size)"></td>
                       <td class="peer-cell">
                         <div class="peer-speed" x-text="formatSpeed(s.upload_speed)"></div>
-                        <div class="peer-queue" x-show="s.queue_length > 0">cola: <span x-text="s.queue_length"></span></div>
+                        <div class="peer-queue" x-show="s.queue_length > 0"><span x-text="t('queueLabel')"></span>: <span x-text="s.queue_length"></span></div>
                       </td>
                       <td>
                         <button
                           class="btn-download"
                           @click="downloadSingle(s.username, {filename: s.filename, size: s.size})"
-                        >↓ DESCARGAR</button>
+                          x-text="t('download')"
+                        >'download')"
                       </td>
                     </tr>
                   </template>
@@ -1331,14 +1332,14 @@
     <!-- Downloads view -->
     <template x-if="view === 'downloads'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">DESCARGAS</span>
-          <span class="badge" x-text="downloads.length + (downloads.length === 1 ? ' álbum' : ' álbumes')" style="margin-left:auto"></span>
+        <div class="topbar"> x-text="t('downloadsTitle')"></span>
+          <span class="badge" x-text="downloads.length + ' ' + (downloads.length === 1 ? t('albumUnit') : t('albumsUnit'))" style="margin-left:auto"></span>
+          <button class="btn-ghost" @click="loadDownloads()" x-text="t('refresh')">h === 1 ? ' álbum' : ' álbumes')" style="margin-left:auto"></span>
           <button class="btn-ghost" @click="loadDownloads()">↺ ACTUALIZAR</button>
         </div>
         <div class="content">
           <div x-show="downloads.length === 0" class="empty-state">
-            <div class="empty-state-icon">↓</div>
+            <div class="empty-state-icon" x-text="t('noDownloads')">
             <div class="empty-state-text">No hay descargas</div>
           </div>
 
@@ -1360,7 +1361,7 @@
                 <div class="dl-group-info">
                   <div class="dl-group-name" :title="g.folder_name" x-text="g.folder_name"></div>
                   <div class="dl-group-meta">
-                    <span x-text="g.username"></span>
+                    <span x-text="g.username"></span>t('fileUnit') : t('filesUnit')
                     <span x-text="g.files.length + ' ' + (g.files.length === 1 ? 'archivo' : 'archivos')"></span>
                     <span x-show="g.total_size > 0" x-text="formatSize(g.total_size)"></span>
                     <span x-show="g.speed > 0" x-text="formatSpeed(g.speed) + '/s'"></span>
@@ -1375,7 +1376,7 @@
 
                 <!-- State + delete -->
                 <div class="dl-group-actions" @click.stop>
-                  <span class="state-badge" :class="'state-' + g.state.split(',')[0].trim()" x-text="stateLabel(g.state)"></span>
+                  <span class="state-badge" :class="'state-' + g.state.s x-text="t('delete')">[0].trim()" x-text="stateLabel(g.state)"></span>
                   <button class="dl-btn-delete" @click="deleteFolder(g)">✕ BORRAR</button>
                 </div>
               </div>
@@ -1410,7 +1411,7 @@
     <!-- Settings view -->
     <template x-if="view === 'settings'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar">
+        <div class="topbar"> x-text="t('settingsTitle')">
           <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">AJUSTES</span>
           <span x-show="platform" x-text="platform" style="margin-left:8px; padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; background:rgba(200,255,0,0.08); color:var(--accent); border:1px solid rgba(200,255,0,0.2);"></span>
         </div>
@@ -1563,6 +1564,81 @@
 <!-- Bottom nav duplicado eliminado -->
 
 <script>
+const TRANSLATIONS = {
+  es: {
+    navSearch: 'Buscar', navDownloads: 'Descargas', navSettings: 'Ajustes',
+    connected: 'CONECTADO', disconnected: 'DESCONECTADO',
+    searchPlaceholder: 'Artista, álbum, canción...',
+    searchBtn: 'BUSCAR', searchingBtn: 'BUSCANDO...', stopBtn: 'DETENER',
+    albumsMode: 'ÁLBUMES', songsMode: 'CANCIONES', allFilter: 'TODOS',
+    searchingNet: 'Buscando en la red...', albumsUnit: 'álbumes', albumUnit: 'álbum',
+    songsUnit: 'canciones', songUnit: 'canción',
+    emptySearch: 'Buscá un artista o álbum para empezar',
+    albumsFound: 'ÁLBUMES ENCONTRADOS', songsFound: 'CANCIONES ENCONTRADAS',
+    colFormat: 'FORMATO', colAlbum: 'ÁLBUM / CARPETA', colQuality: 'CALIDAD',
+    colSize: 'TAMAÑO', colSong: 'CANCIÓN', colAlbumShort: 'ÁLBUM',
+    free: '● libre', busy: '○ ocupado', queued: '✓ EN COLA', download: '↓ DESCARGAR',
+    queueLabel: 'cola', filesUnit: 'archivos', fileUnit: 'archivo',
+    downloadsTitle: 'DESCARGAS', refresh: '↺ ACTUALIZAR', noDownloads: 'No hay descargas', delete: '✕ BORRAR',
+    settingsTitle: 'AJUSTES', soulseekAccount: 'CUENTA SOULSEEK',
+    usernameLabel: 'Usuario', passwordLabel: 'Contraseña', passwordHint: 'Dejá en blanco para no cambiar.',
+    slskdConnection: 'CONEXIÓN SLSKD', slskdUrlLabel: 'URL de slskd',
+    downloadsSection: 'DESCARGAS', downloadFolder: 'Carpeta de descargas',
+    changesSaved: '[OK] CAMBIOS GUARDADOS', saveChanges: 'GUARDAR CAMBIOS',
+    saving: 'GUARDANDO...', verifying: 'VERIFICANDO...',
+    searchSection: 'BÚSQUEDA',
+    advSearchLabel: 'Advanced Search',
+    advSearchHint: 'Retorna todos los resultados sin filtrar ni ordenar. Útil para encontrar contenido específico que no aparece en la búsqueda normal.',
+    updateSection: 'ACTUALIZACIÓN', currentVersion: 'VERSIÓN ACTUAL',
+    updateDownloaded: '[!] Actualización descargada. Cerrá y volvé a abrir la aplicación para aplicarla.',
+    updateBtn: '↑ ACTUALIZAR A ÚLTIMA VERSIÓN', upToDate: '✓ ÚLTIMA VERSIÓN', updatingBtn: 'ACTUALIZANDO...',
+    langSection: 'IDIOMA',
+    settingsSaved: '[OK] Ajustes guardados', connError: 'No se pudo conectar con el servidor.',
+    unknownError: 'Error desconocido', updatedRestarting: '✓ Actualizado — reiniciando...',
+    updateConnError: 'Error de conexión. El servidor puede estar reiniciando — recargá la página en unos segundos.',
+    downloadingAlbum: '↓ Descargando álbum', dlError: 'Error al iniciar descarga',
+    deleted: '✓ Eliminado', deleteError: 'Error al borrar',
+    searchError: 'Error al iniciar búsqueda',
+    confirmDelete: '¿Borrar "{name}" y sus archivos del disco?',
+  },
+  en: {
+    navSearch: 'Search', navDownloads: 'Downloads', navSettings: 'Settings',
+    connected: 'CONNECTED', disconnected: 'DISCONNECTED',
+    searchPlaceholder: 'Artist, album, song...',
+    searchBtn: 'SEARCH', searchingBtn: 'SEARCHING...', stopBtn: 'STOP',
+    albumsMode: 'ALBUMS', songsMode: 'SONGS', allFilter: 'ALL',
+    searchingNet: 'Searching network...', albumsUnit: 'albums', albumUnit: 'album',
+    songsUnit: 'songs', songUnit: 'song',
+    emptySearch: 'Search for an artist or album to get started',
+    albumsFound: 'ALBUMS FOUND', songsFound: 'SONGS FOUND',
+    colFormat: 'FORMAT', colAlbum: 'ALBUM / FOLDER', colQuality: 'QUALITY',
+    colSize: 'SIZE', colSong: 'SONG', colAlbumShort: 'ALBUM',
+    free: '● free', busy: '○ busy', queued: '✓ QUEUED', download: '↓ DOWNLOAD',
+    queueLabel: 'queue', filesUnit: 'files', fileUnit: 'file',
+    downloadsTitle: 'DOWNLOADS', refresh: '↺ REFRESH', noDownloads: 'No downloads', delete: '✕ DELETE',
+    settingsTitle: 'SETTINGS', soulseekAccount: 'SOULSEEK ACCOUNT',
+    usernameLabel: 'Username', passwordLabel: 'Password', passwordHint: 'Leave blank to keep unchanged.',
+    slskdConnection: 'SLSKD CONNECTION', slskdUrlLabel: 'slskd URL',
+    downloadsSection: 'DOWNLOADS', downloadFolder: 'Downloads folder',
+    changesSaved: '[OK] CHANGES SAVED', saveChanges: 'SAVE CHANGES',
+    saving: 'SAVING...', verifying: 'VERIFYING...',
+    searchSection: 'SEARCH',
+    advSearchLabel: 'Advanced Search',
+    advSearchHint: "Returns all results unfiltered and unsorted. Useful for finding specific content that doesn't show up in normal search.",
+    updateSection: 'UPDATE', currentVersion: 'CURRENT VERSION',
+    updateDownloaded: '[!] Update downloaded. Close and reopen the application to apply it.',
+    updateBtn: '↑ UPDATE TO LATEST VERSION', upToDate: '✓ UP TO DATE', updatingBtn: 'UPDATING...',
+    langSection: 'LANGUAGE',
+    settingsSaved: '[OK] Settings saved', connError: 'Could not connect to the server.',
+    unknownError: 'Unknown error', updatedRestarting: '✓ Updated — restarting...',
+    updateConnError: 'Connection error. The server may be restarting — reload the page in a few seconds.',
+    downloadingAlbum: '↓ Downloading album', dlError: 'Error starting download',
+    deleted: '✓ Deleted', deleteError: 'Error deleting',
+    searchError: 'Error starting search',
+    confirmDelete: 'Delete "{name}" and its files from disk?',
+  }
+};
+
 function app() {
   return {
     view: 'search',
@@ -1598,6 +1674,12 @@ function app() {
     settingsError: '',
     settingsOk: false,
     advancedSearch: false,
+    lang: localStorage.getItem('slskweb_lang') || 'es',
+    alreadyLatest: false,
+
+    t(key) {
+      return (TRANSLATIONS[this.lang] || TRANSLATIONS.es)[key] || (TRANSLATIONS.es[key] || key);
+    },
 
     // Update
     appVersion: '',
@@ -1747,13 +1829,15 @@ function app() {
           return;
         }
         if (d.already_latest) {
-          this.updateLog = '✓ Ya tenés la última versión (' + (d.version || this.appVersion) + ')';
+          this.alreadyLatest = true;
+          this.updateLog = '✓ ' + this.t('upToDate') + ' (' + (d.version || this.appVersion) + ')';
         } else {
+          this.alreadyLatest = false;
           this.updateLog = (d.pull_output || '') + '\n✓ Actualizado a ' + (d.version || '?');
           if (d.needs_restart) {
             this.updateNeedsRestart = true;
           } else {
-            this.toast('✓ Actualizado — reiniciando...');
+            this.toast(this.t('updatedRestarting'));
             // Server will restart; reconnect after a few seconds
             await new Promise(r => setTimeout(r, 4000));
             window.location.reload();
@@ -1761,7 +1845,7 @@ function app() {
         }
         this.appVersion = d.version || this.appVersion;
       } catch(e) {
-        this.updateError = 'Error de conexión. El servidor puede estar reiniciando — recargá la página en unos segundos.';
+        this.updateError = this.t('updateConnError');
       } finally {
         this.updating = false;
       }
@@ -1778,6 +1862,7 @@ function app() {
         this.settingsForm.slskd_url = data.slskd_url || '';
         this.settingsForm.slskd_api_key = data.slskd_api_key || '';
         this.advancedSearch = !!data.advanced_search;
+        if (data.lang) { this.lang = data.lang; localStorage.setItem('slskweb_lang', this.lang); }
         this.settingsError = '';
         this.settingsOk = false;
       } catch {}
@@ -1806,12 +1891,12 @@ function app() {
         const data = await r.json();
         if (data.ok) {
           this.settingsOk = true;
-          this.toast('[OK] Ajustes guardados');
+          this.toast(this.t('settingsSaved'));
         } else {
-          this.settingsError = data.error || 'Error desconocido';
+          this.settingsError = data.error || this.t('unknownError');
         }
       } catch {
-        this.settingsError = 'No se pudo conectar con el servidor.';
+        this.settingsError = this.t('connError');
       } finally {
         this.settingsSaving = false;
       }
@@ -1840,19 +1925,25 @@ function app() {
         this.searchId = data.search_id;
         this.pollResults();
       } catch(e) {
-        this.toast('Error al iniciar búsqueda', true);
+        this.toast(this.t('searchError'), true);
         this.searching = false;
       }
     },
 
-    async saveAdvancedSearch() {
+    async savePreferences() {
       try {
         await fetch('/api/setup/preferences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ advanced_search: this.advancedSearch }),
+          body: JSON.stringify({ advanced_search: this.advancedSearch, lang: this.lang }),
         });
       } catch {}
+    },
+
+    setLang(l) {
+      this.lang = l;
+      localStorage.setItem('slskweb_lang', l);
+      this.savePreferences();
     },
 
     pollResults() {
@@ -1896,14 +1987,14 @@ function app() {
           })
         });
         if (resp.ok) {
-          this.toast('↓ Descargando álbum: ' + a.folder_name + ' (' + a.track_count + ' tracks)');
+          this.toast(this.t('downloadingAlbum') + ': ' + a.folder_name + ' (' + a.track_count + ' tracks)');
         } else {
-          this.toast('Error al iniciar descarga', true);
+          this.toast(this.t('dlError'), true);
           this.downloadingFolders.delete(a.folder_path);
           this.downloadingFolders = new Set(this.downloadingFolders);
         }
       } catch(e) {
-        this.toast('Error de conexión', true);
+        this.toast(this.t('connError'), true);
       }
     },
 
@@ -1918,10 +2009,10 @@ function app() {
           const name = file.filename.split('\\').pop().split('/').pop();
           this.toast('↓ ' + name);
         } else {
-          this.toast('Error al iniciar descarga', true);
+          this.toast(this.t('dlError'), true);
         }
       } catch(e) {
-        this.toast('Error de conexión', true);
+        this.toast(this.t('connError'), true);
       }
     },
 
@@ -1950,7 +2041,7 @@ function app() {
     },
 
     async deleteFolder(group) {
-      if (!confirm(`¿Borrar "${group.folder_name}" y sus archivos del disco?`)) return;
+      if (!confirm(this.t('confirmDelete').replace('{name}', group.folder_name))) return;
       try {
         const r = await fetch('/api/downloads/folder', {
           method: 'DELETE',
@@ -1965,13 +2056,13 @@ function app() {
         });
         const data = await r.json();
         if (data.ok) {
-          this.toast('✓ Eliminado: ' + group.folder_name);
+          this.toast(this.t('deleted') + ': ' + group.folder_name);
           await this.loadDownloads();
         } else {
-          this.toast('Error al borrar', true);
+          this.toast(this.t('deleteError'), true);
         }
       } catch(e) {
-        this.toast('Error de conexión', true);
+        this.toast(this.t('connError'), true);
       }
     },
 

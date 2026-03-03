@@ -131,6 +131,7 @@ async def get_settings():
         "soulseek_username": soulseek_username,
         "soulseek_password": soulseek_password,
         "advanced_search":   load_credentials().get("advanced_search", False),
+        "lang":              load_credentials().get("lang", "es"),
     }
 
 
@@ -138,12 +139,14 @@ async def get_settings():
 
 class PreferencesRequest(BaseModel):
     advanced_search: bool = False
+    lang: str = "es"
 
 
 @router.post("/preferences")
 async def save_preferences(body: PreferencesRequest):
     creds = load_credentials()
     creds["advanced_search"] = body.advanced_search
+    creds["lang"] = body.lang
     with open(CREDENTIALS_FILE, "w") as f:
         json.dump(creds, f, indent=2)
     return {"ok": True}
