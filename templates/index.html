@@ -1159,10 +1159,11 @@
               <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'">ÁLBUMES</button>
               <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'">CANCIONES</button>
             </div>
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; gap:6px; align-items:center;">
               <button class="filter-btn" :class="{ active: filterExt === '' }" @click="filterExt = ''">TODOS</button>
               <button class="filter-btn" :class="{ active: filterExt === 'FLAC' }" @click="filterExt = 'FLAC'">FLAC</button>
               <button class="filter-btn" :class="{ active: filterExt === 'MP3' }" @click="filterExt = 'MP3'">MP3</button>
+              <span x-show="advancedSearch" style="padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; background:rgba(200,255,0,0.12); color:var(--accent); border:1px solid rgba(200,255,0,0.35);">ADV</span>
             </div>
           </div>
         </div>
@@ -1442,6 +1443,23 @@
                 <span x-show="!settingsSaving">GUARDAR CAMBIOS</span>
                 <span x-show="settingsSaving">GUARDANDO...</span>
               </button>
+
+              <!-- Advanced Search toggle -->
+              <div class="section-header" style="margin:32px 0 16px; padding-top:24px; border-top:1px solid var(--border);">
+                <span class="section-title">BÚSQUEDA</span>
+              </div>
+              <div class="field-group" style="flex-direction:row; align-items:center; justify-content:space-between; gap:16px;">
+                <div style="flex:1;">
+                  <label class="field-label">Advanced Search</label>
+                  <div class="field-hint">Retorna todos los resultados sin filtrar ni ordenar. Útil para encontrar contenido específico que no aparece en la búsqueda normal.</div>
+                </div>
+                <button @click="advancedSearch = !advancedSearch; saveAdvancedSearch()"
+                  style="flex-shrink:0; min-width:54px; padding:6px 14px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
+                  :style="advancedSearch
+                    ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);'
+                    : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
+                  x-text="advancedSearch ? 'ON' : 'OFF'"></button>
+              </div>
             </div>
           </template>
 
@@ -1484,6 +1502,23 @@
                 <span x-show="!settingsSaving">GUARDAR CAMBIOS</span>
                 <span x-show="settingsSaving">VERIFICANDO...</span>
               </button>
+
+              <!-- Advanced Search toggle -->
+              <div class="section-header" style="margin:32px 0 16px; padding-top:24px; border-top:1px solid var(--border);">
+                <span class="section-title">BÚSQUEDA</span>
+              </div>
+              <div class="field-group" style="flex-direction:row; align-items:center; justify-content:space-between; gap:16px;">
+                <div style="flex:1;">
+                  <label class="field-label">Advanced Search</label>
+                  <div class="field-hint">Retorna todos los resultados sin filtrar ni ordenar. Útil para encontrar contenido específico que no aparece en la búsqueda normal.</div>
+                </div>
+                <button @click="advancedSearch = !advancedSearch; saveAdvancedSearch()"
+                  style="flex-shrink:0; min-width:54px; padding:6px 14px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
+                  :style="advancedSearch
+                    ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);'
+                    : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
+                  x-text="advancedSearch ? 'ON' : 'OFF'"></button>
+              </div>
             </div>
           </template>
 
@@ -1562,6 +1597,7 @@ function app() {
     settingsSaving: false,
     settingsError: '',
     settingsOk: false,
+    advancedSearch: false,
 
     // Update
     appVersion: '',
@@ -1741,6 +1777,7 @@ function app() {
         this.settingsForm.music_path = data.music_path || '';
         this.settingsForm.slskd_url = data.slskd_url || '';
         this.settingsForm.slskd_api_key = data.slskd_api_key || '';
+        this.advancedSearch = !!data.advanced_search;
         this.settingsError = '';
         this.settingsOk = false;
       } catch {}
@@ -1808,11 +1845,21 @@ function app() {
       }
     },
 
+    async saveAdvancedSearch() {
+      try {
+        await fetch('/api/setup/preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ advanced_search: this.advancedSearch }),
+        });
+      } catch {}
+    },
+
     pollResults() {
       this.searchPoll = setInterval(async () => {
         if (!this.searchId) return;
         try {
-          const r = await fetch('/api/search/' + this.searchId);
+          const r = await fetch('/api/search/' + this.searchId + '?raw=' + this.advancedSearch);
           const data = await r.json();
           this.albums = data.albums || [];
           if (data.state && data.state.includes('Completed')) {

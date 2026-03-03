@@ -130,7 +130,23 @@ async def get_settings():
         "music_path":        creds["music_path"] or local.get("default_music_path", ""),
         "soulseek_username": soulseek_username,
         "soulseek_password": soulseek_password,
+        "advanced_search":   load_credentials().get("advanced_search", False),
     }
+
+
+# ── POST /api/setup/preferences  (ajustes de UI, independientes del servidor) ─
+
+class PreferencesRequest(BaseModel):
+    advanced_search: bool = False
+
+
+@router.post("/preferences")
+async def save_preferences(body: PreferencesRequest):
+    creds = load_credentials()
+    creds["advanced_search"] = body.advanced_search
+    with open(CREDENTIALS_FILE, "w") as f:
+        json.dump(creds, f, indent=2)
+    return {"ok": True}
 
 
 # ── POST /api/setup/credentials  (modo remoto) ────────────────────────────────

@@ -65,7 +65,7 @@ async def search(body: SearchRequest):
         raise HTTPException(500, f"No se pudo conectar a slskd: {e}")
 
 @router.get("/{search_id}")
-async def get_results(search_id: str):
+async def get_results(search_id: str, raw: bool = False):
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.get(
@@ -83,8 +83,6 @@ async def get_results(search_id: str):
             )
             state = state_resp.json().get("state", "") if state_resp.content else ""
 
-        # Agrupar archivos por carpeta (álbum)
-        # Cada entrada: { username, folder_path, files: [...] }
         albums = []
 
         for response in responses:
@@ -93,11 +91,9 @@ async def get_results(search_id: str):
             queue_length = response.get("queueLength", 0)
             free_slots = response.get("hasFreeUploadSlot", False)
 
-            # Agrupar archivos de este peer por carpeta
             folders = defaultdict(list)
             for file in response.get("files", []):
                 fname = file["filename"]
-                # La carpeta es todo menos el último segmento
                 if "\\" in fname:
                     folder = fname.rsplit("\\", 1)[0]
                 else:
@@ -107,32 +103,38 @@ async def get_results(search_id: str):
             for folder_path, files in folders.items():
                 audio_files = [f for f in files if f["filename"].split(".")[-1].lower()
                                in {"mp3", "flac", "ogg", "aac", "opus", "m4a", "wav"}]
-                if not audio_files:
-                    continue
-                # Carpetas con 1 sola canción son sencillos, no álbumes
-                if len(audio_files) < 2:
-                    continue
 
-                # Determinar formato dominante
-                exts = [f["filename"].split(".")[-1].upper() for f in audio_files]
+                if raw:
+                    # Raw mode: include every folder, use all files for display
+                    display_files = files if files else []
+                    if not display_files:
+                        continue
+                    # Use audio_files if any, otherwise all files
+                    count_files = audio_files if audio_files else files
+                else:
+                    if not audio_files:
+                        continue
+                    if len(audio_files) < 2:
+                        continue
+                    display_files = audio_files
+                    count_files = audio_files
+
+                exts = [f["filename"].split(".")[-1].upper() for f in count_files]
                 ext_counts = defaultdict(int)
                 for e in exts:
                     ext_counts[e] += 1
-                dominant_ext = max(ext_counts, key=ext_counts.get)
+                dominant_ext = max(ext_counts, key=ext_counts.get) if ext_counts else "?"
 
-                # Calidad representativa (del primer archivo con datos)
-                bitrate = next((f.get("bitRate") for f in audio_files if f.get("bitRate")), None)
-                sample_rate = next((f.get("sampleRate") for f in audio_files if f.get("sampleRate")), None)
-                bit_depth = next((f.get("bitDepth") for f in audio_files if f.get("bitDepth")), None)
+                bitrate = next((f.get("bitRate") for f in count_files if f.get("bitRate")), None)
+                sample_rate = next((f.get("sampleRate") for f in count_files if f.get("sampleRate")), None)
+                bit_depth = next((f.get("bitDepth") for f in count_files if f.get("bitDepth")), None)
 
-                total_size = sum(f.get("size", 0) for f in audio_files)
+                total_size = sum(f.get("size", 0) for f in display_files)
 
-                # Nombre del álbum: último segmento del path
                 folder_name = folder_path.split("\\")[-1] if "\\" in folder_path else folder_path.split("/")[-1]
-                # Eliminar prefijos tipo [1], [2023], [CD1] del nombre mostrado
-                folder_name = re.sub(r'^(\s*\[[^\]]*\]\s*)+', '', folder_name).strip()
+                if not raw:
+                    folder_name = re.sub(r'^(\s*\[[^\]]*\]\s*)+', '', folder_name).strip()
 
-                # Extraer artista del path (penúltimo segmento)
                 parts = folder_path.replace("\\", "/").split("/")
                 artist_guess = parts[-2] if len(parts) >= 2 else ""
 
@@ -144,19 +146,23 @@ async def get_results(search_id: str):
                     "folder_path": folder_path,
                     "folder_name": folder_name,
                     "artist_guess": artist_guess,
-                    "track_count": len(audio_files),
+                    "track_count": len(count_files),
                     "total_size": total_size,
                     "extension": dominant_ext,
                     "bitrate": bitrate,
                     "sample_rate": sample_rate,
                     "bit_depth": bit_depth,
-                    "files": [{"filename": f["filename"], "size": f.get("size", 0)} for f in audio_files],
+                    "files": [{"filename": f["filename"], "size": f.get("size", 0)} for f in display_files],
                 })
 
-        # Contar popularidad por peers (cuenta variantes normalizadas juntas)
+        # ── Raw mode: no dedup, no Deezer, just sort by speed ────────────────
+        if raw:
+            albums.sort(key=lambda x: (-x["upload_speed"], not x["free_slots"]))
+            return {"state": state, "albums": albums, "total": len(albums)}
+
+        # ── Smart mode: dedup + Deezer ranking ───────────────────────────────
         popularity = Counter(normalize_folder(a["folder_name"]) + "::" + a["extension"] for a in albums)
 
-        # Ranking externo: detectar artista dominante y consultar Deezer
         artist_counts = Counter(
             a["artist_guess"] for a in albums
             if a["artist_guess"] and a["artist_guess"].lower() not in JUNK_NAMES
@@ -164,8 +170,6 @@ async def get_results(search_id: str):
         top_artist = artist_counts.most_common(1)[0][0] if artist_counts else ""
         deezer_ranks = await get_deezer_album_ranks(top_artist)
 
-        # Deduplicar: clave normalizada para fusionar variantes del mismo álbum
-        # (mantiene FLAC y MP3 como entradas separadas)
         seen = {}
         for album in albums:
             key = normalize_folder(album["folder_name"]) + "::" + album["extension"]
@@ -180,10 +184,8 @@ async def get_results(search_id: str):
                 if better_quality:
                     seen[key] = album
                 else:
-                    # Aunque no cambiamos el peer, preferimos el nombre más limpio
                     if " - " not in album["folder_name"] and " - " in current["folder_name"]:
                         seen[key]["folder_name"] = album["folder_name"]
-                # Preferir el artist_guess que no sea junk
                 if not current["artist_guess"] or current["artist_guess"].lower() in JUNK_NAMES:
                     if album["artist_guess"] and album["artist_guess"].lower() not in JUNK_NAMES:
                         seen[key]["artist_guess"] = album["artist_guess"]
@@ -192,9 +194,7 @@ async def get_results(search_id: str):
 
         albums.sort(key=lambda x: (
             x["extension"] != "FLAC",
-            # Ranking Deezer (externo) — 0 es mejor, 999 si no aparece
             deezer_ranks.get(normalize_folder(x["folder_name"]), 999),
-            # Popularidad por peers como desempate
             -popularity[normalize_folder(x["folder_name"]) + "::" + x["extension"]],
             -(x["bitrate"] or 0),
             not x["free_slots"],
