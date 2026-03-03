@@ -2,12 +2,15 @@ from fastapi import APIRouter
 from fastapi.responses import Response
 from pathlib import Path
 import httpx
+import os
 import re
 
 router = APIRouter()
 
 # Cache en memoria para no repetir requests
 cover_cache = {}
+
+AUDIO_EXTS = {".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav", ".aiff", ".ape", ".wv"}
 
 
 def clean_for_search(artist: str, album: str) -> tuple[str, str]:
@@ -104,37 +107,99 @@ def get_embedded_cover(filepath: str):
             for tag in tags.values():
                 if hasattr(tag, 'FrameID') and tag.FrameID == "APIC":
                     return tag.data, tag.mime
+        elif ext in ("m4a", "aac", "mp4"):
+            from mutagen.mp4 import MP4
+            audio = MP4(filepath)
+            covr = audio.tags.get("covr") if audio.tags else None
+            if covr:
+                img = covr[0]
+                mime = "image/jpeg" if getattr(img, 'imageformat', 13) == 13 else "image/png"
+                return bytes(img), mime
+        elif ext in ("ogg", "opus"):
+            from mutagen.oggvorbis import OggVorbis
+            from mutagen.oggopus import OggOpus
+            klass = OggOpus if ext == "opus" else OggVorbis
+            audio = klass(filepath)
+            metadata_block = audio.get("metadata_block_picture", [])
+            if metadata_block:
+                import base64
+                from mutagen.flac import Picture
+                pic = Picture(base64.b64decode(metadata_block[0]))
+                return pic.data, pic.mime
     except Exception:
         pass
     return None, None
 
 
+def _find_cover_in_folder(folder: Path):
+    """Try embedded art from first audio file, then look for cover image files."""
+    # Try embedded first
+    for f in sorted(folder.iterdir()):
+        if f.is_file() and f.suffix.lower() in AUDIO_EXTS:
+            data, mime = get_embedded_cover(str(f))
+            if data:
+                return data, mime or "image/jpeg"
+    # Fallback: image files in the folder
+    for name in ["cover.jpg", "cover.png", "folder.jpg", "folder.png",
+                  "front.jpg", "front.png", "Cover.jpg", "Cover.png"]:
+        p = folder / name
+        if p.exists():
+            mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+            return p.read_bytes(), mime
+    return None, None
+
+
 @router.get("/search")
 async def cover_from_search(artist: str, album: str):
-    """Para resultados de búsqueda — usa iTunes Search API"""
+    """Para resultados de búsqueda — usa Deezer API"""
     data = await fetch_cover(artist, album)
     if data:
         return Response(content=data, media_type="image/jpeg")
     return Response(status_code=404)
 
 
+@router.get("/folder")
+async def cover_from_folder(folder_name: str):
+    """Para la pestaña de descargas: embedded art > cover.jpg > Deezer."""
+    from config import MUSIC_PATH
+
+    cache_key = f"folder::{folder_name.lower()}"
+    if cache_key in cover_cache and cover_cache[cache_key]:
+        d, m = cover_cache[cache_key]
+        return Response(content=d, media_type=m)
+
+    # 1. Try to read from disk
+    folder = Path(MUSIC_PATH) / folder_name
+    if folder.is_dir():
+        data, mime = _find_cover_in_folder(folder)
+        if data:
+            cover_cache[cache_key] = (data, mime)
+            return Response(content=data, media_type=mime)
+
+    # 2. Fallback: Deezer with cleaned folder name
+    sep = folder_name.find(" - ")
+    artist = folder_name[:sep] if sep > -1 else ""
+    album  = folder_name[sep + 3:] if sep > -1 else folder_name
+    data = await fetch_cover(artist, album)
+    if data:
+        cover_cache[cache_key] = (data, "image/jpeg")
+        return Response(content=data, media_type="image/jpeg")
+
+    cover_cache[cache_key] = None
+    return Response(status_code=404)
+
+
 @router.get("/local")
 async def cover_from_file(path: str):
     """Para librería local — usa arte embebido o cover.jpg"""
-    import os
     if not os.path.exists(path):
         return Response(status_code=404)
-
-    # Intentar arte embebido
     data, mime = get_embedded_cover(path)
     if data:
         return Response(content=data, media_type=mime or "image/jpeg")
-
-    # Fallback: cover.jpg en la carpeta
     folder = Path(path).parent
     for name in ["cover.jpg", "cover.png", "folder.jpg", "front.jpg", "Cover.jpg"]:
         cover_path = folder / name
         if cover_path.exists():
             return Response(content=cover_path.read_bytes(), media_type="image/jpeg")
-
     return Response(status_code=404)

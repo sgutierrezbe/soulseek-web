@@ -1886,10 +1886,7 @@ function app() {
     },
 
     groupCoverUrl(folderName) {
-      const sep = folderName.indexOf(' - ');
-      const artist = sep > -1 ? folderName.slice(0, sep) : '';
-      const album  = sep > -1 ? folderName.slice(sep + 3) : folderName;
-      return `/api/covers/?artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`;
+      return `/api/covers/folder?folder_name=${encodeURIComponent(folderName)}`;
     },
 
     stateLabel(state) {
