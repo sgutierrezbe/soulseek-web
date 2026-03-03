@@ -388,6 +388,46 @@
   .empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
   .empty-state-text { font-size: 13px; }
 
+  /* Advanced search suggestion */
+  .adv-suggestion {
+    margin: 20px 20px 0;
+    padding: 18px 22px;
+    background: rgba(200,255,0,0.04);
+    border: 1px solid rgba(200,255,0,0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .adv-suggestion-icon { font-size: 24px; opacity: 0.7; flex-shrink: 0; }
+  .adv-suggestion-body { flex: 1; min-width: 200px; }
+  .adv-suggestion-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .adv-suggestion-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .adv-suggestion-btn {
+    background: rgba(200,255,0,0.1);
+    border: 1px solid rgba(200,255,0,0.4);
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .adv-suggestion-btn:hover { background: rgba(200,255,0,0.18); }
+
   /* Trending grid */
   .trending-wrap { padding: 4px 0 24px; }
   .trending-grid {
@@ -1368,6 +1408,29 @@
             </div>
           </div>
 
+          <!-- No results / few results suggestion -->
+          <div x-show="!searching && searchId && filteredAlbums.length < 5 && searchMode === 'albums'">
+            <!-- Zero results empty state -->
+            <div x-show="filteredAlbums.length === 0" class="empty-state" style="padding-top:40px;">
+              <div class="empty-state-icon">⌕</div>
+              <div class="empty-state-text" x-text="t('noResultsTitle')"></div>
+            </div>
+            <!-- Suggestion card -->
+            <div class="adv-suggestion">
+              <div class="adv-suggestion-icon">⚡</div>
+              <div class="adv-suggestion-body">
+                <div class="adv-suggestion-title" x-text="filteredAlbums.length === 0 ? t('noResultsTitle') : t('fewResultsTitle')"></div>
+                <div class="adv-suggestion-text" x-text="advancedSearch ? (filteredAlbums.length === 0 ? t('noResultsAlready') : t('fewResultsAlready')) : t('fewResultsText')"></div>
+              </div>
+              <button
+                x-show="!advancedSearch"
+                class="adv-suggestion-btn"
+                @click="advancedSearch = true; savePreferences(); doSearch()"
+                x-text="t('fewResultsBtn')"
+              ></button>
+            </div>
+          </div>
+
           <!-- Albums view -->
           <div x-show="searchMode === 'albums' && filteredAlbums.length > 0">
             <div class="section-header">
@@ -1828,6 +1891,13 @@ const TRANSLATIONS = {
     searchingNet: 'Buscando en la red...', albumsUnit: 'álbumes', albumUnit: 'álbum',
     songsUnit: 'canciones', songUnit: 'canción',
     emptySearch: 'Buscá un artista o álbum para empezar',
+    noResultsTitle: 'Sin resultados',
+    fewResultsTitle: 'Pocos resultados',
+    fewResultsText: 'La búsqueda normal filtra por calidad y elimina duplicados. El modo avanzado retorna todos los resultados sin filtrar.',
+    fewResultsBtn: 'Activar búsqueda avanzada y repetir',
+    fewResultsAlready: 'Ya estás en modo avanzado — no hay más resultados disponibles en la red.',
+    noResultsAlready: 'No se encontraron resultados. Ya estás en modo avanzado, no hay más resultados disponibles.',
+
     trendingTitle: 'TENDENCIAS', trendingSubtitle: 'Álbumes populares ahora',
     trendingSearch: 'Buscar en Soulseek',
     albumsFound: 'ÁLBUMES ENCONTRADOS', songsFound: 'CANCIONES ENCONTRADAS',
@@ -1866,6 +1936,13 @@ const TRANSLATIONS = {
     searchingNet: 'Searching network...', albumsUnit: 'albums', albumUnit: 'album',
     songsUnit: 'songs', songUnit: 'song',
     emptySearch: 'Search for an artist or album to get started',
+    noResultsTitle: 'No results',
+    fewResultsTitle: 'Few results',
+    fewResultsText: 'Normal search filters by quality and removes duplicates. Advanced mode returns all results unfiltered.',
+    fewResultsBtn: 'Activate advanced search and try again',
+    fewResultsAlready: 'You\'re already in advanced mode — no more results available on the network.',
+    noResultsAlready: 'No results found. You are already in advanced mode, no more results available.',
+
     trendingTitle: 'TRENDING', trendingSubtitle: 'Popular albums right now',
     trendingSearch: 'Search on Soulseek',
     albumsFound: 'ALBUMS FOUND', songsFound: 'SONGS FOUND',
