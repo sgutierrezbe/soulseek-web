@@ -8,6 +8,25 @@ A minimalist web UI for [slskd](https://github.com/slskd/slskd) — search and d
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshot-search.png" alt="Search" width="700">
+  <br><em>Search results — list and grid view with cover art</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-downloads.png" alt="Downloads" width="700">
+  <br><em>Downloads tab — grouped by album with per-track progress</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-settings.png" alt="Settings" width="700">
+  <br><em>Settings panel</em>
+</p>
+
+---
+
 ## Features
 
 - 🔍 **Search albums and songs** across the Soulseek network
