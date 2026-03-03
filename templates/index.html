@@ -955,6 +955,117 @@
   .mode-btn:hover { color: var(--text); }
   .mode-btn.active { background: var(--surface); color: var(--accent); }
 
+  /* View toggle (list/grid) */
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px;
+  }
+  .view-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    width: 28px;
+    height: 26px;
+    border-radius: 3px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .view-btn:hover { color: var(--text); }
+  .view-btn.active { background: var(--surface); color: var(--accent); }
+
+  /* Search results grid view */
+  .search-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+    gap: 12px;
+    padding: 16px;
+  }
+  .search-result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    display: flex;
+    flex-direction: column;
+  }
+  .search-result-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .src-cover {
+    position: relative;
+    aspect-ratio: 1;
+    background: var(--surface2);
+    overflow: hidden;
+  }
+  .src-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .src-ext {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .src-slot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .src-info {
+    padding: 8px 10px 4px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .src-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .src-artist {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .src-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 9px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: 3px;
+    flex-wrap: wrap;
+  }
+  .src-download {
+    margin: 6px 10px 10px;
+    text-align: center;
+  }
+
   /* Expandable track list */
   .track-list {
     background: var(--bg);
@@ -1208,6 +1319,10 @@
               <button class="filter-btn" :class="{ active: filterExt === 'FLAC' }" @click="filterExt = 'FLAC'">FLAC</button>
               <button class="filter-btn" :class="{ active: filterExt === 'MP3' }" @click="filterExt = 'MP3'">MP3</button>
               <span x-show="advancedSearch" style="padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; background:rgba(200,255,0,0.12); color:var(--accent); border:1px solid rgba(200,255,0,0.35);">ADV</span>
+              <div class="view-toggle" x-show="searchMode === 'albums' && filteredAlbums.length > 0">
+                <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'; localStorage.setItem('slskweb_viewMode', 'list')" title="Vista lista">☰</button>
+                <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'; localStorage.setItem('slskweb_viewMode', 'grid')" title="Vista grilla">⊞</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1257,7 +1372,43 @@
               <span class="section-title" x-text="t('albumsFound')"></span>
               <span class="badge" x-text="filteredAlbums.length + ' ' + (filteredAlbums.length === 1 ? t('albumUnit') : t('albumsUnit'))"></span>
             </div>
-            <div class="results-wrap">
+
+            <!-- Grid view -->
+            <div x-show="viewMode === 'grid'" class="search-results-grid">
+              <template x-for="(a, i) in filteredAlbums.slice(0, 200)" :key="a.folder_path + '::g::' + i">
+                <div class="search-result-card">
+                  <div class="src-cover">
+                    <img
+                      :src="'/api/covers/search?artist=' + encodeURIComponent(a.artist_guess) + '&album=' + encodeURIComponent(a.folder_name)"
+                      :alt="a.folder_name"
+                      onerror="this.style.opacity='0'"
+                    >
+                    <span class="src-ext ext-badge" :class="'ext-' + (a.extension === 'FLAC' || a.extension === 'MP3' ? a.extension : 'other')" x-text="a.extension"></span>
+                    <span x-show="a.free_slots" class="src-slot slot-free" x-text="t('free')"></span>
+                    <span x-show="!a.free_slots" class="src-slot slot-busy" x-text="t('busy')"></span>
+                  </div>
+                  <div class="src-info">
+                    <div class="src-title" :title="a.folder_path" x-text="a.folder_name"></div>
+                    <div class="src-artist" x-text="a.artist_guess || a.username"></div>
+                    <div class="src-meta">
+                      <span x-text="a.track_count + ' tracks'"></span>
+                      <span x-text="formatSize(a.total_size)"></span>
+                      <span x-show="a.bitrate" x-text="a.bitrate + 'k'"></span>
+                    </div>
+                  </div>
+                  <button
+                    class="btn-download src-download"
+                    :class="{ downloading: downloadingFolders.has(a.folder_path) }"
+                    @click.stop="downloadFolder(a)"
+                    :disabled="downloadingFolders.has(a.folder_path)"
+                    x-text="downloadingFolders.has(a.folder_path) ? t('queued') : t('download')"
+                  ></button>
+                </div>
+              </template>
+            </div>
+
+            <!-- List view -->
+            <div x-show="viewMode === 'list'" class="results-wrap">
               <table class="results-table">
                 <thead>
                   <tr>
@@ -1340,6 +1491,7 @@
                 </template>
               </table>
             </div>
+            </div><!-- end list view -->
           </div>
 
           <!-- Songs view -->
@@ -1782,6 +1934,7 @@ function app() {
     alreadyLatest: false,
     trending: [],
     trendingLoaded: false,
+    viewMode: localStorage.getItem('slskweb_viewMode') || 'list',
 
     t(key) {
       return (TRANSLATIONS[this.lang] || TRANSLATIONS.es)[key] || (TRANSLATIONS.es[key] || key);
