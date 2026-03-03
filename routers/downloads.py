@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import httpx
 import os
 import shutil
-from config import SLSKD_URL, SLSKD_API_KEY
+from config import SLSKD_URL, SLSKD_API_KEY, MUSIC_PATH
 
 router = APIRouter()
 HEADERS = {"X-API-Key": SLSKD_API_KEY}
@@ -23,7 +23,9 @@ class DownloadFolderRequest(BaseModel):
 class DeleteFolderRequest(BaseModel):
     username: str
     file_ids: list[str]
-    local_paths: list[str]
+    local_paths: list[str]   # slskd localFilename — may be empty for completed transfers
+    folder_name: str = ""    # remote folder name, used to find files on disk as fallback
+    filenames: list[str] = []  # display filenames inside the folder
 
 
 def _group_state(files: list[dict]) -> str:
@@ -140,6 +142,8 @@ async def get_downloads():
 async def delete_download_folder(body: DeleteFolderRequest):
     """Cancel all transfers in a folder and delete files from disk."""
     errors = []
+
+    # 1. Cancel / remove transfers from slskd
     async with httpx.AsyncClient(timeout=10) as client:
         for file_id in body.file_ids:
             if not file_id:
@@ -153,11 +157,41 @@ async def delete_download_folder(body: DeleteFolderRequest):
             except Exception as e:
                 errors.append(str(e))
 
-    # Delete files from disk
+    # 2. Build the set of paths to delete
+    #    Priority: explicit local_paths from slskd > reconstruct from music_path
+    paths_to_delete: list[str] = [p for p in body.local_paths if p]
+
+    # Fallback: search music_path for a folder matching folder_name
+    if body.folder_name:
+        # Try exact match first
+        candidate = os.path.join(MUSIC_PATH, body.folder_name)
+        if os.path.isdir(candidate):
+            # Delete the entire directory tree directly
+            try:
+                shutil.rmtree(candidate)
+                return {"ok": True, "errors": errors}
+            except Exception as e:
+                errors.append(str(e))
+        else:
+            # Search recursively (depth 1) for the folder
+            try:
+                for entry in os.scandir(MUSIC_PATH):
+                    if entry.is_dir() and entry.name == body.folder_name:
+                        shutil.rmtree(entry.path)
+                        return {"ok": True, "errors": errors}
+            except Exception:
+                pass
+
+        # If no folder found, reconstruct per-file paths from music_path + folder + filename
+        if not paths_to_delete and body.filenames:
+            for fname in body.filenames:
+                p = os.path.join(MUSIC_PATH, body.folder_name, fname)
+                if os.path.isfile(p):
+                    paths_to_delete.append(p)
+
+    # 3. Delete individual files
     deleted_dirs: set[str] = set()
-    for path in body.local_paths:
-        if not path:
-            continue
+    for path in paths_to_delete:
         try:
             if os.path.isfile(path):
                 os.remove(path)
@@ -165,7 +199,7 @@ async def delete_download_folder(body: DeleteFolderRequest):
         except Exception as e:
             errors.append(str(e))
 
-    # Remove parent folder if now empty (or only has .incomplete subfolder)
+    # 4. Remove parent folder if now empty
     for folder in deleted_dirs:
         try:
             remaining = [

@@ -1818,6 +1818,8 @@ function app() {
             username: group.username,
             file_ids: group.file_ids,
             local_paths: group.local_paths,
+            folder_name: group.folder_name,
+            filenames: group.files.map(f => f.filename),
           })
         });
         const data = await r.json();
