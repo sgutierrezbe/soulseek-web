@@ -367,59 +367,151 @@
   .empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
   .empty-state-text { font-size: 13px; }
 
-  /* Downloads */
-  .download-item {
+  /* Downloads – grouped by folder */
+  .dl-group {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 14px 18px;
-    margin-bottom: 8px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
     transition: border-color 0.2s;
   }
+  .dl-group:hover { border-color: #333340; }
 
-  .download-item:hover { border-color: #333340; }
-
-  .download-header {
+  .dl-group-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
+    gap: 14px;
+    padding: 12px 14px;
+    cursor: pointer;
+    user-select: none;
   }
 
-  .download-filename {
+  .dl-group-cover {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .dl-group-cover-placeholder {
+    width: 60px;
+    height: 60px;
+    border-radius: 4px;
+    background: var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: var(--muted);
+  }
+
+  .dl-group-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .dl-group-name {
     font-size: 13px;
+    font-weight: 600;
     color: var(--text);
-    max-width: 400px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    margin-bottom: 4px;
   }
-
-  .download-meta {
+  .dl-group-meta {
     font-family: 'Space Mono', monospace;
     font-size: 10px;
     color: var(--muted);
     display: flex;
-    gap: 16px;
-    margin-bottom: 8px;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
   }
-
-  .progress-bar {
+  .dl-group-bar {
     height: 2px;
     background: var(--border);
     border-radius: 1px;
     overflow: hidden;
   }
-
-  .progress-fill {
+  .dl-group-bar-fill {
     height: 100%;
     background: var(--accent);
     border-radius: 1px;
     transition: width 0.5s ease;
   }
+  .dl-group-bar-fill.completed { background: #6fc; }
+  .dl-group-bar-fill.errored   { background: #f44; }
 
-  .progress-fill.completed { background: var(--accent); }
-  .progress-fill.errored { background: #ff4444; }
+  .dl-group-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .dl-btn-delete {
+    background: none;
+    border: 1px solid rgba(255,60,60,0.3);
+    color: rgba(255,110,110,0.75);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .dl-btn-delete:hover {
+    background: rgba(255,60,60,0.1);
+    border-color: rgba(255,60,60,0.65);
+    color: #ff8888;
+  }
+
+  .dl-tracks {
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+  .dl-track-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px 7px 88px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .dl-track-row:last-child { border-bottom: none; }
+  .dl-track-name {
+    flex: 1;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dl-track-pct {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    width: 30px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .dl-track-bar {
+    width: 50px;
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .dl-track-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  .state-Requested { background: rgba(130,130,200,0.12); color: #aab; }
 
   .state-badge {
     font-family: 'Space Mono', monospace;
@@ -1216,34 +1308,75 @@
     <template x-if="view === 'downloads'">
       <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
         <div class="topbar">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">DESCARGAS ACTIVAS</span>
-          <span class="badge" x-text="downloads.length + ' archivos'" style="margin-left:auto"></span>
+          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;">DESCARGAS</span>
+          <span class="badge" x-text="downloads.length + (downloads.length === 1 ? ' álbum' : ' álbumes')" style="margin-left:auto"></span>
           <button class="btn-ghost" @click="loadDownloads()">↺ ACTUALIZAR</button>
         </div>
         <div class="content">
           <div x-show="downloads.length === 0" class="empty-state">
             <div class="empty-state-icon">↓</div>
-            <div class="empty-state-text">No hay descargas activas</div>
+            <div class="empty-state-text">No hay descargas</div>
           </div>
 
-          <template x-for="(d, i) in downloads" :key="i">
-            <div class="download-item">
-              <div class="download-header">
-                <div class="download-filename" :title="d.filename" x-text="d.filename"></div>
-                <span class="state-badge" :class="'state-' + d.state.split(',')[0].trim()" x-text="d.state.split(',')[0].trim()"></span>
-              </div>
-              <div class="download-meta">
-                <span x-text="'de: ' + d.username"></span>
-                <span x-text="formatSize(d.size)"></span>
-                <span x-show="d.speed > 0" x-text="formatSpeed(d.speed) + '/s'"></span>
-                <span x-show="d.percent > 0 && d.percent < 100" x-text="d.percent.toFixed(1) + '%'"></span>
-              </div>
-              <div class="progress-bar">
-                <div class="progress-fill"
-                  :class="{ completed: d.state.includes('Completed'), errored: d.state.includes('Errored') }"
-                  :style="'width:' + (d.percent || 0) + '%'">
+          <template x-for="(g, gi) in downloads" :key="g.username + '::' + g.directory">
+            <div class="dl-group">
+
+              <!-- Group header: cover + info + actions -->
+              <div class="dl-group-header" @click="expandedGroup = (expandedGroup === gi ? null : gi)">
+
+                <!-- Album art -->
+                <img class="dl-group-cover"
+                  :src="groupCoverUrl(g.folder_name)"
+                  @error="$el.style.display='none'; $el.nextElementSibling.style.display='flex'"
+                  loading="lazy"
+                  style="display:block">
+                <div class="dl-group-cover-placeholder" style="display:none">♪</div>
+
+                <!-- Folder info -->
+                <div class="dl-group-info">
+                  <div class="dl-group-name" :title="g.folder_name" x-text="g.folder_name"></div>
+                  <div class="dl-group-meta">
+                    <span x-text="g.username"></span>
+                    <span x-text="g.files.length + ' ' + (g.files.length === 1 ? 'archivo' : 'archivos')"></span>
+                    <span x-show="g.total_size > 0" x-text="formatSize(g.total_size)"></span>
+                    <span x-show="g.speed > 0" x-text="formatSpeed(g.speed) + '/s'"></span>
+                  </div>
+                  <div class="dl-group-bar">
+                    <div class="dl-group-bar-fill"
+                      :class="{ completed: g.state === 'Completed', errored: g.state.includes('Errored') }"
+                      :style="'width:' + (g.progress || 0) + '%'">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- State + delete -->
+                <div class="dl-group-actions" @click.stop>
+                  <span class="state-badge" :class="'state-' + g.state.split(',')[0].trim()" x-text="stateLabel(g.state)"></span>
+                  <button class="dl-btn-delete" @click="deleteFolder(g)">✕ BORRAR</button>
                 </div>
               </div>
+
+              <!-- Track list (collapsible) -->
+              <div class="dl-tracks" x-show="expandedGroup === gi">
+                <template x-for="(f, fi) in g.files" :key="fi">
+                  <div class="dl-track-row">
+                    <div class="dl-track-name" :title="f.filename" x-text="f.filename"></div>
+                    <span class="state-badge"
+                      :class="'state-' + f.state.split(',')[0].trim()"
+                      x-text="stateLabel(f.state)"
+                      style="font-size:8px; padding:1px 5px; flex-shrink:0">
+                    </span>
+                    <div class="dl-track-bar">
+                      <div class="dl-track-bar-fill" :style="'width:' + (f.percent || 0) + '%'"></div>
+                    </div>
+                    <span class="dl-track-pct"
+                      x-show="f.percent > 0 && f.percent < 100"
+                      x-text="f.percent.toFixed(0) + '%'">
+                    </span>
+                  </div>
+                </template>
+              </div>
+
             </div>
           </template>
         </div>
@@ -1367,6 +1500,7 @@ function app() {
     toasts: [],
     searchMode: 'albums',
     expandedAlbum: null,
+    expandedGroup: null,
 
     // Setup wizard
     setupDone: null,      // null = cargando, false = necesita config, true = listo
@@ -1413,7 +1547,7 @@ function app() {
     },
 
     get activeDownloads() {
-      return this.downloads.filter(d => d.state.includes('InProgress')).length;
+      return this.downloads.filter(g => g.state === 'InProgress').length;
     },
 
     async init() {
@@ -1652,6 +1786,50 @@ function app() {
         const r = await fetch('/api/downloads/');
         this.downloads = await r.json();
       } catch(e) {}
+    },
+
+    groupCoverUrl(folderName) {
+      const sep = folderName.indexOf(' - ');
+      const artist = sep > -1 ? folderName.slice(0, sep) : '';
+      const album  = sep > -1 ? folderName.slice(sep + 3) : folderName;
+      return `/api/covers/?artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(album)}`;
+    },
+
+    stateLabel(state) {
+      const s = (state || '').split(',')[0].trim();
+      const map = {
+        'Completed':  '✓ OK',
+        'InProgress': '↓ DESC.',
+        'Queued':     '⏸ COLA',
+        'Requested':  '⟳ PEDIDO',
+        'Errored':    '✗ ERROR',
+        'Cancelled':  '✕ CANCEL.',
+      };
+      return map[s] || s;
+    },
+
+    async deleteFolder(group) {
+      if (!confirm(`¿Borrar "${group.folder_name}" y sus archivos del disco?`)) return;
+      try {
+        const r = await fetch('/api/downloads/folder', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: group.username,
+            file_ids: group.file_ids,
+            local_paths: group.local_paths,
+          })
+        });
+        const data = await r.json();
+        if (data.ok) {
+          this.toast('✓ Eliminado: ' + group.folder_name);
+          await this.loadDownloads();
+        } else {
+          this.toast('Error al borrar', true);
+        }
+      } catch(e) {
+        this.toast('Error de conexión', true);
+      }
     },
 
     async loadLibrary() {
