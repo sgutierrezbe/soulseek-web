@@ -1,9 +1,10 @@
 from fastapi import APIRouter
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from pathlib import Path
 import httpx
 import os
 import re
+import time
 
 router = APIRouter()
 
@@ -187,6 +188,36 @@ async def cover_from_folder(folder_name: str):
 
     cover_cache[cache_key] = None
     return Response(status_code=404)
+
+
+@router.get("/trending")
+async def get_trending():
+    """Devuelve los álbumes en tendencia según los charts de Deezer."""
+    cache_key = "__trending__"
+    cached = cover_cache.get(cache_key)
+    if cached and time.time() - cached["ts"] < 3600:
+        return JSONResponse(cached["data"])
+
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            resp = await client.get(
+                "https://api.deezer.com/chart/0/albums",
+                params={"limit": 24}
+            )
+            raw = resp.json().get("data", [])
+    except Exception:
+        return JSONResponse([])
+
+    albums = []
+    for item in raw:
+        artist = item.get("artist", {}).get("name", "")
+        title  = item.get("title", "")
+        cover  = item.get("cover_xl") or item.get("cover_big") or item.get("cover_medium") or ""
+        if title and cover:
+            albums.append({"title": title, "artist": artist, "cover_url": cover})
+
+    cover_cache[cache_key] = {"ts": time.time(), "data": albums}
+    return JSONResponse(albums)
 
 
 @router.get("/local")

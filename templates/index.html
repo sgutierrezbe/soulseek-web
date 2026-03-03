@@ -386,6 +386,50 @@
   .empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
   .empty-state-text { font-size: 13px; }
 
+  /* Trending grid */
+  .trending-wrap { padding: 4px 0 24px; }
+  .trending-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .trending-card {
+    cursor: pointer;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .trending-card:hover { border-color: #444; transform: translateY(-2px); }
+  .trending-card img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+    background: var(--surface2);
+  }
+  .trending-card-info {
+    padding: 8px 10px 10px;
+  }
+  .trending-card-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 2px;
+  }
+  .trending-card-artist {
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* Downloads – grouped by folder */
   .dl-group {
     background: var(--surface);
@@ -1175,10 +1219,36 @@
             <span><span x-text="t('searchingNet')"></span> <span x-text="albums.length"></span> <span x-text="t('albumsUnit')"></span></span>
           </div>
 
-          <!-- Empty state -->
-          <div x-show="!searching && albums.length === 0 && !searchId" class="empty-state">
-            <div class="empty-state-icon">⌕</div>
-            <div class="empty-state-text" x-text="t('emptySearch')"></div>
+          <!-- Empty state / Trending -->
+          <div x-show="!searching && albums.length === 0 && !searchId">
+
+            <!-- Trending grid (when data loaded) -->
+            <template x-if="trendingLoaded && trending.length > 0">
+              <div class="trending-wrap">
+                <div class="section-header">
+                  <span class="section-title" x-text="t('trendingTitle')"></span>
+                  <span style="font-size:10px; color:var(--muted); font-family:'Space Mono',monospace;" x-text="t('trendingSubtitle')"></span>
+                </div>
+                <div class="trending-grid">
+                  <template x-for="(a, i) in trending" :key="i">
+                    <div class="trending-card" @click="searchTrending(a)" :title="t('trendingSearch') + ': ' + a.artist + ' - ' + a.title">
+                      <img :src="a.cover_url" :alt="a.title" loading="lazy"
+                        onerror="this.style.opacity='0.2'">
+                      <div class="trending-card-info">
+                        <div class="trending-card-title" x-text="a.title"></div>
+                        <div class="trending-card-artist" x-text="a.artist"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Fallback while loading or if Deezer unavailable -->
+            <div x-show="!trendingLoaded || trending.length === 0" class="empty-state">
+              <div class="empty-state-icon">⌕</div>
+              <div class="empty-state-text" x-text="t('emptySearch')"></div>
+            </div>
           </div>
 
           <!-- Albums view -->
@@ -1604,6 +1674,8 @@ const TRANSLATIONS = {
     searchingNet: 'Buscando en la red...', albumsUnit: 'álbumes', albumUnit: 'álbum',
     songsUnit: 'canciones', songUnit: 'canción',
     emptySearch: 'Buscá un artista o álbum para empezar',
+    trendingTitle: 'TENDENCIAS', trendingSubtitle: 'Álbumes populares ahora',
+    trendingSearch: 'Buscar en Soulseek',
     albumsFound: 'ÁLBUMES ENCONTRADOS', songsFound: 'CANCIONES ENCONTRADAS',
     colFormat: 'FORMATO', colAlbum: 'ÁLBUM / CARPETA', colQuality: 'CALIDAD',
     colSize: 'TAMAÑO', colSong: 'CANCIÓN', colAlbumShort: 'ÁLBUM',
@@ -1640,6 +1712,8 @@ const TRANSLATIONS = {
     searchingNet: 'Searching network...', albumsUnit: 'albums', albumUnit: 'album',
     songsUnit: 'songs', songUnit: 'song',
     emptySearch: 'Search for an artist or album to get started',
+    trendingTitle: 'TRENDING', trendingSubtitle: 'Popular albums right now',
+    trendingSearch: 'Search on Soulseek',
     albumsFound: 'ALBUMS FOUND', songsFound: 'SONGS FOUND',
     colFormat: 'FORMAT', colAlbum: 'ALBUM / FOLDER', colQuality: 'QUALITY',
     colSize: 'SIZE', colSong: 'SONG', colAlbumShort: 'ALBUM',
@@ -1706,6 +1780,8 @@ function app() {
     advancedSearch: false,
     lang: localStorage.getItem('slskweb_lang') || 'es',
     alreadyLatest: false,
+    trending: [],
+    trendingLoaded: false,
 
     t(key) {
       return (TRANSLATIONS[this.lang] || TRANSLATIONS.es)[key] || (TRANSLATIONS.es[key] || key);
@@ -1755,6 +1831,7 @@ function app() {
     async init() {
       await this.checkSetup();
       this.loadVersion();
+      this.loadTrending();
       if (this.setupDone) {
         await this.checkStatus();
         setInterval(() => this.checkStatus(), 10000);
@@ -1835,6 +1912,19 @@ function app() {
       } finally {
         this.setupSaving = false;
       }
+    },
+
+    async loadTrending() {
+      try {
+        const r = await fetch('/api/covers/trending');
+        this.trending = await r.json();
+        this.trendingLoaded = true;
+      } catch(e) { this.trendingLoaded = true; }
+    },
+
+    searchTrending(album) {
+      this.query = album.artist ? album.artist + ' - ' + album.title : album.title;
+      this.doSearch();
     },
 
     async loadVersion() {
