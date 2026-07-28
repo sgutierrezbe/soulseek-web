@@ -1,2455 +1,783 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- viewport-fit=cover lets the layout extend under the notch; the CSS then
+     pads content back out with env(safe-area-inset-*). -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0c">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Search and download music from the Soulseek network, from any device.">
 <title>Soulseek Web</title>
-<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-<link rel="icon" type="image/png" sizes="64x64" href="/static/logo.png">
-<link rel="apple-touch-icon" href="/static/logo.png">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.3/cdn.min.js" defer></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0a0a0c;
-    --surface: #111114;
-    --surface2: #18181d;
-    --border: #222228;
-    --accent: #c8ff00;
-    --accent2: #ff6b35;
-    --text: #e8e8f0;
-    --muted: #555566;
-    --flac: #c8ff00;
-    --mp3: #ff6b35;
-    --other: #8888aa;
-  }
 
-  [x-cloak] { display: none !important; }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* Grain overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 999;
-    opacity: 0.4;
-  }
-
-  /* Layout */
-  .app { display: flex; height: 100vh; }
-
-  /* Sidebar */
-  .sidebar {
-    width: 200px;
-    min-width: 200px;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-  }
-
-  .logo {
-    padding: 20px 24px 18px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .logo-img {
-    height: 44px;
-    width: auto;
-    object-fit: contain;
-    display: block;
-    margin-bottom: 8px;
-    filter: drop-shadow(0 0 6px rgba(200,255,0,0.25));
-  }
-
-  .wizard-logo-img {
-    height: 80px;
-    width: auto;
-    object-fit: contain;
-    display: block;
-    margin: 0 auto 16px;
-    filter: drop-shadow(0 0 12px rgba(200,255,0,0.35));
-  }
-
-  .logo-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
-
-  .logo-sub {
-    font-size: 10px;
-    color: var(--muted);
-    margin-top: 2px;
-    letter-spacing: 0.05em;
-  }
-
-  .nav { padding: 16px 0; flex: 1; }
-
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 24px;
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 400;
-    transition: all 0.15s;
-    border-left: 2px solid transparent;
-    user-select: none;
-  }
-
-  .nav-item:hover { color: var(--text); background: var(--surface2); }
-
-  .nav-item.active {
-    color: var(--accent);
-    border-left-color: var(--accent);
-    background: rgba(200, 255, 0, 0.04);
-  }
-
-  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
-
-  .status-bar {
-    padding: 16px 24px;
-    border-top: 1px solid var(--border);
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-  }
-
-  .status-dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: #555;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
-
-  .status-dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
-
-  /* Main content */
-  .main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .topbar {
-    padding: 20px 32px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    background: var(--surface);
-  }
-
-  .search-wrap {
-    flex: 1;
-    position: relative;
-    max-width: 600px;
-  }
-
-  .search-input {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 10px 16px 10px 40px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .search-input:focus { border-color: var(--accent); }
-  .search-input::placeholder { color: var(--muted); }
-
-  .search-icon {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--muted);
-    font-size: 14px;
-  }
-
-  .btn {
-    background: var(--accent);
-    color: #000;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 4px;
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-
-  .btn:hover { background: #d4ff1a; transform: translateY(-1px); }
-  .btn:active { transform: translateY(0); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    padding: 8px 14px;
-    border-radius: 4px;
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
-
-  .btn-danger {
-    background: transparent;
-    color: #ff4444;
-    border: 1px solid #ff444433;
-    padding: 4px 10px;
-    border-radius: 3px;
-    font-size: 10px;
-    cursor: pointer;
-    font-family: 'Space Mono', monospace;
-    transition: all 0.15s;
-  }
-
-  .btn-danger:hover { background: #ff444422; }
-
-  /* Content area */
-  .content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 28px 32px;
-  }
-
-  .content::-webkit-scrollbar { width: 4px; }
-  .content::-webkit-scrollbar-track { background: transparent; }
-  .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* Section header */
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-  }
-
-  .section-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  .badge {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    background: var(--surface2);
-    color: var(--muted);
-    padding: 2px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-  }
-
-  /* Search results table */
-  .results-table { width: 100%; border-collapse: collapse; }
-
-  .results-table th {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    padding: 8px 12px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-
-  .results-table td {
-    padding: 9px 12px;
-    border-bottom: 1px solid rgba(34,34,40,0.5);
-    vertical-align: middle;
-  }
-
-  .results-table tr:hover td { background: var(--surface2); }
-
-  .ext-badge {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 3px;
-    letter-spacing: 0.05em;
-  }
-
-  .ext-FLAC { background: rgba(200,255,0,0.15); color: var(--flac); }
-  .ext-MP3  { background: rgba(255,107,53,0.15); color: var(--mp3); }
-  .ext-other { background: rgba(136,136,170,0.1); color: var(--other); }
-
-  .quality-cell { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text); }
-  .quality-muted { color: var(--muted); }
-
-  .filename-cell {
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text);
-    font-size: 13px;
-  }
-
-  .peer-cell { font-family: 'Space Mono', monospace; font-size: 11px; }
-  .peer-speed { color: var(--text); }
-  .peer-queue { color: var(--muted); font-size: 10px; }
-
-  .slot-free { color: var(--accent); font-size: 10px; }
-  .slot-busy { color: var(--muted); font-size: 10px; }
-
-  .btn-download {
-    background: transparent;
-    color: var(--accent);
-    border: 1px solid rgba(200,255,0,0.3);
-    padding: 5px 12px;
-    border-radius: 3px;
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .btn-download:hover { background: rgba(200,255,0,0.1); border-color: var(--accent); }
-  .btn-download.downloading { color: var(--muted); border-color: var(--border); cursor: default; }
-
-  /* State indicators */
-  .searching-indicator {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    padding: 40px 0;
-    justify-content: center;
-  }
-
-  .spinner {
-    width: 14px; height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .empty-state {
-    text-align: center;
-    padding: 60px 0;
-    color: var(--muted);
-  }
-
-  .empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
-  .empty-state-text { font-size: 13px; }
-
-  /* Advanced search suggestion */
-  .adv-suggestion {
-    margin: 20px 20px 0;
-    padding: 18px 22px;
-    background: rgba(200,255,0,0.04);
-    border: 1px solid rgba(200,255,0,0.2);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .adv-suggestion-icon { font-size: 24px; opacity: 0.7; flex-shrink: 0; }
-  .adv-suggestion-body { flex: 1; min-width: 200px; }
-  .adv-suggestion-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--accent);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-  .adv-suggestion-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
-  .adv-suggestion-btn {
-    background: rgba(200,255,0,0.1);
-    border: 1px solid rgba(200,255,0,0.4);
-    color: var(--accent);
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-    transition: background 0.15s;
-  }
-  .adv-suggestion-btn:hover { background: rgba(200,255,0,0.18); }
-
-  /* Trending grid */
-  .trending-wrap { padding: 4px 0 24px; }
-  .trending-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 14px;
-    margin-top: 16px;
-  }
-  .trending-card {
-    cursor: pointer;
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    transition: border-color 0.15s, transform 0.15s;
-  }
-  .trending-card:hover { border-color: #444; transform: translateY(-2px); }
-  .trending-card img {
-    width: 100%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    display: block;
-    background: var(--surface2);
-  }
-  .trending-card-info {
-    padding: 8px 10px 10px;
-  }
-  .trending-card-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin-bottom: 2px;
-  }
-  .trending-card-artist {
-    font-size: 10px;
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Downloads – grouped by folder */
-  .dl-group {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 10px;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-  .dl-group:hover { border-color: #333340; }
-
-  .dl-group-header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 14px;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .dl-group-cover {
-    width: 60px;
-    height: 60px;
-    border-radius: 4px;
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-  .dl-group-cover-placeholder {
-    width: 60px;
-    height: 60px;
-    border-radius: 4px;
-    background: var(--border);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    color: var(--muted);
-  }
-
-  .dl-group-info {
-    flex: 1;
-    min-width: 0;
-  }
-  .dl-group-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 4px;
-  }
-  .dl-group-meta {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 6px;
-  }
-  .dl-group-bar {
-    height: 2px;
-    background: var(--border);
-    border-radius: 1px;
-    overflow: hidden;
-  }
-  .dl-group-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 1px;
-    transition: width 0.5s ease;
-  }
-  .dl-group-bar-fill.completed { background: #6fc; }
-  .dl-group-bar-fill.errored   { background: #f44; }
-
-  .dl-group-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  .dl-btn-delete {
-    background: none;
-    border: 1px solid rgba(255,60,60,0.3);
-    color: rgba(255,110,110,0.75);
-    border-radius: 4px;
-    padding: 4px 10px;
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.08em;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .dl-btn-delete:hover {
-    background: rgba(255,60,60,0.1);
-    border-color: rgba(255,60,60,0.65);
-    color: #ff8888;
-  }
-
-  .dl-tracks {
-    border-top: 1px solid var(--border);
-    overflow: hidden;
-    transition: max-height 0.25s ease;
-  }
-  .dl-track-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 14px 7px 88px;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
-  }
-  .dl-track-row:last-child { border-bottom: none; }
-  .dl-track-name {
-    flex: 1;
-    font-size: 11px;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dl-track-pct {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-    width: 30px;
-    text-align: right;
-    flex-shrink: 0;
-  }
-  .dl-track-bar {
-    width: 50px;
-    height: 2px;
-    background: var(--border);
-    border-radius: 1px;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .dl-track-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    transition: width 0.3s ease;
-  }
-
-  .state-Requested { background: rgba(130,130,200,0.12); color: #aab; }
-
-  .state-badge {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    padding: 2px 7px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .state-InProgress { background: rgba(200,255,0,0.1); color: var(--accent); }
-  .state-Completed  { background: rgba(100,200,100,0.1); color: #6fc; }
-  .state-Queued     { background: rgba(255,200,0,0.1); color: #fc6; }
-  .state-Errored, .state-Cancelled { background: rgba(255,68,68,0.1); color: #f66; }
-
-  /* Library grid */
-  .album-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 16px;
-  }
-
-  .album-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-    transition: all 0.2s;
-    cursor: default;
-  }
-
-  .album-card:hover {
-    border-color: #333340;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  }
-
-  .album-cover {
-    width: 100%;
-    aspect-ratio: 1;
-    background: var(--surface2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    color: var(--border);
-  }
-
-  .album-info { padding: 10px 12px; }
-
-  .album-title {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .album-artist {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .album-tracks {
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    color: var(--muted);
-    margin-top: 6px;
-  }
-
-  /* Filter bar */
-  .filter-bar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-
-  .filter-btn {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .filter-btn:hover { color: var(--text); border-color: #444; }
-  .filter-btn.active { background: rgba(200,255,0,0.1); color: var(--accent); border-color: rgba(200,255,0,0.3); }
-
-  /* Toast */
-  .toast-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .toast {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 12px 16px;
-    font-size: 12px;
-    color: var(--text);
-    max-width: 300px;
-    animation: slideIn 0.2s ease;
-    border-left: 3px solid var(--accent);
-  }
-
-  .toast.error { border-left-color: #ff4444; }
-
-  @keyframes slideIn {
-    from { transform: translateX(20px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-
-  /* Scrollbar for results */
-  .results-wrap { overflow-x: auto; }
-
-  /* ── RESPONSIVE MOBILE ─────────────────────────────────── */
-  @media (max-width: 640px) {
-    /* Ocultar sidebar lateral */
-    .sidebar { display: none; }
-
-    /* Bottom nav fijo */
-    .bottom-nav {
-      display: flex !important;
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      height: 60px;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      z-index: 100;
-    }
-
-    /* Espacio extra abajo para que el contenido no quede bajo el nav */
-    .main { padding-bottom: 60px; }
-    .content { padding: 16px; }
-
-    /* Topbar más compacto */
-    .topbar {
-      padding: 10px 12px;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .search-wrap { min-width: 0; max-width: 100%; }
-
-    /* Controles de modo y filtros en fila scrollable */
-    .topbar-controls {
-      display: flex;
-      overflow-x: auto;
-      gap: 6px;
-      width: 100%;
-      padding-bottom: 2px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .topbar-controls::-webkit-scrollbar { display: none; }
-
-    /* Ocultar columnas no esenciales en tablas */
-    .col-hide-mobile { display: none; }
-
-    /* Imágenes más pequeñas en resultados */
-    .album-thumb { width: 36px !important; height: 36px !important; }
-
-    /* Album grid: 2 columnas en móvil */
-    .album-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  }
-
-  /* ── SETUP WIZARD ───────────────────────────────────────── */
-  .wizard-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--bg);
-    z-index: 9000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-
-  .wizard-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 40px 44px;
-    width: 100%;
-    max-width: 480px;
-    box-shadow: 0 32px 80px rgba(0,0,0,0.6);
-  }
-
-  .wizard-logo {
-    font-family: 'Space Mono', monospace;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    color: var(--accent);
-    text-transform: uppercase;
-    margin-bottom: 4px;
-  }
-
-  .wizard-sub {
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 32px;
-  }
-
-  .wizard-title {
-    font-family: 'Space Mono', monospace;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-bottom: 20px;
-  }
-
-  .field-group {
-    margin-bottom: 18px;
-  }
-
-  .field-label {
-    display: block;
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 7px;
-  }
-
-  .field-hint {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 5px;
-    line-height: 1.4;
-  }
-
-  .wizard-input {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 10px 14px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .wizard-input:focus { border-color: var(--accent); }
-  .wizard-input::placeholder { color: var(--muted); }
-
-  .wizard-error {
-    background: rgba(255,68,68,0.08);
-    border: 1px solid rgba(255,68,68,0.25);
-    border-radius: 4px;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: #ff6666;
-    margin-bottom: 16px;
-    line-height: 1.4;
-  }
-
-  .wizard-divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 24px 0;
-  }
-
-  .wizard-btn {
-    width: 100%;
-    background: var(--accent);
-    color: #000;
-    border: none;
-    padding: 12px;
-    border-radius: 4px;
-    font-family: 'Space Mono', monospace;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .wizard-btn:hover:not(:disabled) { background: #d4ff1a; }
-  .wizard-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-  @media (max-width: 640px) {
-    .wizard-card { padding: 28px 22px; }
-  }
-
-  /* Bottom nav (oculto en desktop) */
-  .bottom-nav {
-    display: none;
-  }
-
-  .bottom-nav-item {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    cursor: pointer;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    transition: color 0.15s;
-    border: none;
-    background: none;
-    position: relative;
-    padding: 0;
-  }
-
-  .bottom-nav-item.active { color: var(--accent); }
-  .bottom-nav-item .nav-icon { font-size: 20px; }
-
-  .bottom-nav-badge {
-    position: absolute;
-    top: 6px;
-    right: calc(50% - 18px);
-    background: var(--accent);
-    color: #000;
-    font-size: 8px;
-    font-weight: 700;
-    border-radius: 8px;
-    padding: 1px 4px;
-    line-height: 1.4;
-  }
-
-  /* Mode toggle */
-  .mode-toggle {
-    display: flex;
-    gap: 2px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 3px;
-  }
-
-  .mode-btn {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    padding: 5px 14px;
-    border-radius: 3px;
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-  }
-
-  .mode-btn:hover { color: var(--text); }
-  .mode-btn.active { background: var(--surface); color: var(--accent); }
-
-  /* View toggle (list/grid) */
-  .view-toggle {
-    display: flex;
-    gap: 2px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 3px;
-  }
-  .view-btn {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    width: 28px;
-    height: 26px;
-    border-radius: 3px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-  }
-  .view-btn:hover { color: var(--text); }
-  .view-btn.active { background: var(--surface); color: var(--accent); }
-
-  /* Search results grid view */
-  .search-results-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-    gap: 12px;
-    padding: 16px;
-  }
-  .search-result-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: border-color 0.15s, transform 0.15s;
-    display: flex;
-    flex-direction: column;
-  }
-  .search-result-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-  .src-cover {
-    position: relative;
-    aspect-ratio: 1;
-    background: var(--surface2);
-    overflow: hidden;
-  }
-  .src-cover img { width: 100%; height: 100%; object-fit: cover; }
-  .src-ext {
-    position: absolute;
-    top: 6px;
-    left: 6px;
-    font-family: 'Space Mono', monospace;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 2px 5px;
-    border-radius: 3px;
-    pointer-events: none;
-  }
-  .src-slot {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    font-family: 'Space Mono', monospace;
-    font-size: 8px;
-    font-weight: 700;
-    padding: 2px 5px;
-    border-radius: 3px;
-    pointer-events: none;
-  }
-  .src-info {
-    padding: 8px 10px 4px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .src-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .src-artist {
-    font-size: 10px;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .src-meta {
-    display: flex;
-    gap: 8px;
-    font-size: 9px;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    margin-top: 3px;
-    flex-wrap: wrap;
-  }
-  .src-download {
-    margin: 6px 10px 10px;
-    text-align: center;
-  }
-
-  /* Expandable track list */
-  .track-list {
-    background: var(--bg);
-    border-top: 1px solid var(--border);
-    padding: 4px 0;
-  }
-
-  .track-row {
-    display: flex;
-    align-items: center;
-    padding: 5px 16px 5px 74px;
-    gap: 12px;
-    border-bottom: 1px solid rgba(34,34,40,0.4);
-  }
-
-  .track-row:last-child { border-bottom: none; }
-  .track-row:hover { background: var(--surface2); }
-
-  .track-num {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-    width: 20px;
-    flex-shrink: 0;
-    text-align: right;
-  }
-
-  .track-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--text);
-    font-size: 12px;
-  }
-
-  .track-size {
-    font-family: 'Space Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-    flex-shrink: 0;
-  }
-</style>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/static/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SLSK//WEB">
+
+<link rel="preload" href="/static/fonts/space-mono-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/dm-sans.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Assets are cached for an hour, so the URLs carry the app version: updating
+     changes the URL and the new CSS/JS is picked up on the next load instead of
+     whenever the browser happens to revalidate. -->
+<link rel="stylesheet" href="/static/css/fonts.css?v={{ version }}">
+<link rel="stylesheet" href="/static/css/app.css?v={{ version }}">
+
+<script>window.__BOOT__ = {{ boot|safe }};</script>
+<script src="/static/js/i18n.js?v={{ version }}" defer></script>
+<script src="/static/js/app.js?v={{ version }}" defer></script>
+<script src="/static/js/vendor/alpine.min.js?v={{ version }}" defer></script>
 </head>
+
 <body>
+<div class="app" :class="{ 'has-player': player.track }" x-data="app()" x-cloak>
 
-<div class="app" x-data="app()">
-
-  <!-- ══ SETUP WIZARD ══════════════════════════════════════════════ -->
-  <div class="wizard-overlay" x-show="setupDone === false" x-cloak>
-    <div class="wizard-card">
-      <img src="/static/logo.png" alt="SLSK//WEB" class="wizard-logo-img"
-           onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-      <div class="wizard-logo" style="display:none">SLSK//WEB</div>
-      <div class="wizard-sub">Primera configuración</div>
-
-      <!-- ── MODO LOCAL: instalación Windows autónoma (install.ps1) ── -->
-      <template x-if="localSetup">
-        <div>
-          <div class="wizard-title">Cuenta de Soulseek</div>
-
-          <div class="field-group">
-            <label class="field-label">Usuario</label>
-            <input
-              class="wizard-input"
-              type="text"
-              placeholder="tu usuario de Soulseek"
-              x-model="soulseekForm.soulseek_username"
-              @keydown.enter="saveLocalSetup()"
-              autocomplete="username"
-            >
-            <div class="field-hint">Si no tenés cuenta, creá una gratis en <a href="https://www.slsknet.org/" target="_blank" style="color:var(--accent)">slsknet.org</a></div>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">Contraseña</label>
-            <input
-              class="wizard-input"
-              type="password"
-              placeholder="tu contraseña de Soulseek"
-              x-model="soulseekForm.soulseek_password"
-              @keydown.enter="saveLocalSetup()"
-              autocomplete="current-password"
-            >
-          </div>
-
-          <hr class="wizard-divider">
-
-          <div class="wizard-title">Carpeta de descargas</div>
-
-          <div class="field-group">
-            <label class="field-label">Ruta local</label>
-            <input
-              class="wizard-input"
-              type="text"
-              x-model="soulseekForm.music_path"
-              @keydown.enter="saveLocalSetup()"
-            >
-            <div class="field-hint">Carpeta donde se guardarán los archivos descargados.</div>
-          </div>
-
-          <div x-show="setupError" class="wizard-error" x-text="setupError"></div>
-
-          <button
-            class="wizard-btn"
-            @click="saveLocalSetup()"
-            :disabled="setupSaving || !soulseekForm.soulseek_username.trim() || !soulseekForm.soulseek_password.trim()"
-          >
-            <span x-show="!setupSaving">EMPEZAR</span>
-            <span x-show="setupSaving">CONECTANDO... (puede tardar ~20 s)</span>
-          </button>
-        </div>
-      </template>
-
-      <!-- ── MODO REMOTO: slskd ya corre en otro servidor ── -->
-      <template x-if="!localSetup">
-        <div>
-          <div class="wizard-title">Conexión con slskd</div>
-
-          <div class="field-group">
-            <label class="field-label">URL de slskd</label>
-            <input
-              class="wizard-input"
-              type="url"
-              placeholder="http://192.168.1.10:5030"
-              x-model="setupForm.slskd_url"
-              @keydown.enter="saveSetup()"
-            >
-            <div class="field-hint">Dirección donde corre tu instancia de slskd.</div>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">API Key</label>
-            <input
-              class="wizard-input"
-              type="password"
-              placeholder="tu-api-key"
-              x-model="setupForm.slskd_api_key"
-              @keydown.enter="saveSetup()"
-            >
-            <div class="field-hint">La encontrás en tu <code style="color:var(--accent);font-size:11px;">slskd.yml</code> bajo <code style="color:var(--accent);font-size:11px;">web.authentication.apiKey</code>.</div>
-          </div>
-
-          <hr class="wizard-divider">
-
-          <div class="wizard-title">Carpeta de descargas</div>
-
-          <div class="field-group">
-            <label class="field-label">Ruta local</label>
-            <input
-              class="wizard-input"
-              type="text"
-              placeholder="/mnt/music/downloads"
-              x-model="setupForm.music_path"
-              @keydown.enter="saveSetup()"
-            >
-            <div class="field-hint">Carpeta donde slskd guarda los archivos descargados.</div>
-          </div>
-
-          <div x-show="setupError" class="wizard-error" x-text="setupError"></div>
-
-          <button
-            class="wizard-btn"
-            @click="saveSetup()"
-            :disabled="setupSaving || !setupForm.slskd_url.trim() || !setupForm.slskd_api_key.trim()"
-          >
-            <span x-show="!setupSaving">CONECTAR Y GUARDAR</span>
-            <span x-show="setupSaving">VERIFICANDO...</span>
-          </button>
-        </div>
-      </template>
-
+  <!-- ══ LOGIN ══════════════════════════════════════════════════════════ -->
+  <div class="overlay" x-show="authEnabled && !authed">
+    <div class="card">
+      <img src="/static/logo-256.png" alt="" class="card-logo">
+      <div class="card-sub" x-text="t('loginSub')"></div>
+      <div class="field">
+        <label class="field-label" for="login-password" x-text="t('passwordLabel')"></label>
+        <input id="login-password" class="input" type="password" autocomplete="current-password"
+               x-model="loginPassword" @keydown.enter="login()">
+      </div>
+      <div class="form-error" x-show="loginError" x-text="loginError"></div>
+      <button class="btn" @click="login()" :disabled="loggingIn || !loginPassword">
+        <span x-text="loggingIn ? t('verifying') : t('loginBtn')"></span>
+      </button>
     </div>
   </div>
-  <!-- ══ /SETUP WIZARD ═════════════════════════════════════════════ -->
 
-  <!-- Bottom nav (móvil) — dentro del x-data para acceder al estado Alpine -->
-  <nav class="bottom-nav">
-    <button class="bottom-nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
-      <span class="nav-icon">⌕</span>
-      <span x-text="t('navSearch')"></span>
-    </button>
-    <button class="bottom-nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
-      <span class="nav-icon">↓</span>
-      <span x-text="t('navDownloads')"></span>
-      <span x-show="activeDownloads > 0" class="bottom-nav-badge" x-text="activeDownloads"></span>
-    </button>
-    <button class="bottom-nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; loadSettings()">
-      <span class="nav-icon">⚙</span>
-      <span x-text="t('navSettings')"></span>
-    </button>
-  </nav>
+  <!-- ══ SETUP WIZARD ═══════════════════════════════════════════════════ -->
+  <div class="overlay" x-show="authed && setupDone === false">
+    <div class="card">
+      <img src="/static/logo-256.png" alt="" class="card-logo">
+      <div class="card-sub" x-text="t('wizardSub')"></div>
 
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="logo">
-      <img src="/static/logo.png" alt="SLSK//WEB" class="logo-img"
-           onerror="this.style.display='none'">
-      <div class="logo-title">SLSK//WEB</div>
-      <div class="logo-sub" x-text="platform || 'soulseek client'">soulseek client</div>
+      <!-- Windows standalone: soulseek-web owns its own slskd, so it only needs
+           the user's Soulseek account. -->
+      <template x-if="localSetup">
+        <div>
+          <div class="card-title" x-text="t('soulseekAccount')"></div>
+          <div class="field">
+            <label class="field-label" for="w-user" x-text="t('usernameLabel')"></label>
+            <input id="w-user" class="input" type="text" autocomplete="username"
+                   x-model="soulseekForm.soulseek_username" @keydown.enter="saveLocalSetup()">
+            <div class="field-hint">
+              <span x-text="t('noAccountHint')"></span>
+              <a href="https://www.slsknet.org/" target="_blank" rel="noopener">slsknet.org</a>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="w-pass" x-text="t('passwordLabel')"></label>
+            <input id="w-pass" class="input" type="password" autocomplete="current-password"
+                   x-model="soulseekForm.soulseek_password" @keydown.enter="saveLocalSetup()">
+          </div>
+
+          <hr class="divider">
+          <div class="card-title" x-text="t('downloadsSection')"></div>
+          <div class="field">
+            <label class="field-label" for="w-path" x-text="t('downloadFolder')"></label>
+            <input id="w-path" class="input" type="text" x-model="soulseekForm.music_path"
+                   @keydown.enter="saveLocalSetup()">
+            <div class="field-hint" x-text="t('downloadFolderHint')"></div>
+          </div>
+
+          <div class="form-error" x-show="setupError" x-text="setupError"></div>
+          <button class="btn" @click="saveLocalSetup()"
+            :disabled="setupSaving || !soulseekForm.soulseek_username.trim() || !soulseekForm.soulseek_password.trim()">
+            <span x-text="setupSaving ? t('connectingLong') : t('startBtn')"></span>
+          </button>
+        </div>
+      </template>
+
+      <!-- Remote: slskd already runs somewhere else. -->
+      <template x-if="!localSetup">
+        <div>
+          <div class="card-title" x-text="t('slskdConnection')"></div>
+          <div class="field">
+            <label class="field-label" for="w-url" x-text="t('slskdUrlLabel')"></label>
+            <input id="w-url" class="input" type="url" placeholder="http://192.168.1.10:5030"
+                   x-model="setupForm.slskd_url" @keydown.enter="saveSetup()">
+            <div class="field-hint" x-text="t('slskdUrlHint')"></div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="w-key" x-text="t('apiKeyLabel')"></label>
+            <input id="w-key" class="input" type="password" autocomplete="off"
+                   x-model="setupForm.slskd_api_key" @keydown.enter="saveSetup()">
+            <div class="field-hint" x-text="t('apiKeyHint')"></div>
+          </div>
+
+          <hr class="divider">
+          <div class="card-title" x-text="t('downloadsSection')"></div>
+          <div class="field">
+            <label class="field-label" for="w-path2" x-text="t('downloadFolder')"></label>
+            <input id="w-path2" class="input" type="text" placeholder="/mnt/music/downloads"
+                   x-model="setupForm.music_path" @keydown.enter="saveSetup()">
+            <div class="field-hint" x-text="t('downloadFolderHint')"></div>
+          </div>
+
+          <div class="form-error" x-show="setupError" x-text="setupError"></div>
+          <button class="btn" @click="saveSetup()"
+            :disabled="setupSaving || !setupForm.slskd_url.trim() || !setupForm.slskd_api_key.trim()">
+            <span x-text="setupSaving ? t('verifying') : t('connectSave')"></span>
+          </button>
+        </div>
+      </template>
     </div>
-    <nav class="nav">
-      <div class="nav-item" :class="{ active: view === 'search' }" @click="view = 'search'">
-        <span class="nav-icon">⌕</span> <span x-text="t('navSearch')"></span>
-      </div>
-      <div class="nav-item" :class="{ active: view === 'downloads' }" @click="view = 'downloads'; loadDownloads()">
-        <span class="nav-icon">↓</span> <span x-text="t('navDownloads')"></span>
-        <span x-show="activeDownloads > 0" class="badge" x-text="activeDownloads" style="margin-left:auto"></span>
-      </div>
-      <div class="nav-item" :class="{ active: view === 'settings' }" @click="view = 'settings'; loadSettings()">
-        <span class="nav-icon">⚙</span> <span x-text="t('navSettings')"></span>
-      </div>
+  </div>
+
+  <!-- ══ SIDEBAR (desktop) ══════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="/static/logo-256.png" alt="" width="40" height="40">
+      <div class="sidebar-title">SLSK//WEB</div>
+      <div class="sidebar-sub" x-text="platform || 'soulseek client'"></div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item" :class="{ 'is-active': view === 'search' }" @click="go('search')">
+        <span class="nav-icon">⌕</span><span x-text="t('navSearch')"></span>
+      </button>
+      <button class="nav-item" :class="{ 'is-active': view === 'downloads' }" @click="go('downloads')">
+        <span class="nav-icon">↓</span><span x-text="t('navDownloads')"></span>
+        <span class="nav-badge" x-show="activeDownloads > 0" x-text="activeDownloads"></span>
+      </button>
+      <button class="nav-item" :class="{ 'is-active': view === 'library' }" @click="go('library')">
+        <span class="nav-icon">♪</span><span x-text="t('navLibrary')"></span>
+      </button>
+      <button class="nav-item" :class="{ 'is-active': view === 'settings' }" @click="go('settings')">
+        <span class="nav-icon">⚙</span><span x-text="t('navSettings')"></span>
+      </button>
     </nav>
-    <div class="status-bar">
-      <span class="status-dot" :class="{ connected: connected }"></span>
+    <div class="sidebar-status">
+      <span class="status-dot" :class="{ 'is-connected': connected }"></span>
       <span x-text="connected ? t('connected') : t('disconnected')"></span>
     </div>
   </aside>
 
-  <!-- Main -->
+  <!-- ══ MAIN ═══════════════════════════════════════════════════════════ -->
   <div class="main">
 
-    <!-- Search view -->
-    <template x-if="view === 'search'">
-      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar">
+    <!-- ── SEARCH ─────────────────────────────────────────────────────── -->
+    <div class="view" x-show="view === 'search'">
+      <div class="topbar">
+        <div class="topbar-row">
           <div class="search-wrap">
-            <span class="search-icon">⌕</span>
-            <input
-              class="search-input"
-              type="text"
-              :placeholder="t('searchPlaceholder')"
-              x-model="query"
-              @keydown.enter="doSearch()"
-            >
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <label class="visually-hidden" for="q" x-text="t('searchBtn')"></label>
+            <input id="q" class="search-input" type="search" enterkeyhint="search"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   :placeholder="t('searchPlaceholder')"
+                   x-model="query" @keydown.enter="doSearch()">
+            <button class="search-clear" x-show="query" @click="clearSearch()"
+                    :aria-label="t('clearBtn')">✕</button>
           </div>
-          <button class="btn" @click="doSearch()" :disabled="searching || !query.trim()">
-            <span x-show="!searching" x-text="t('searchBtn')"></span>
-            <span x-show="searching" x-text="t('searchingBtn')"></span>
-          </button>
-          <button x-show="searchId" class="btn-ghost" @click="stopSearch()" x-text="t('stopBtn')"></button>
+          <button class="btn" x-show="!searching" @click="doSearch()" :disabled="!query.trim()"
+                  x-text="t('searchBtn')"></button>
+          <button class="btn-ghost" x-show="searching" @click="stopSearch()"
+                  x-text="t('stopBtn')"></button>
+        </div>
 
-          <!-- Mode toggle + Filters (scrollable row en móvil) -->
-          <div class="topbar-controls">
-            <div class="mode-toggle">
-              <button class="mode-btn" :class="{ active: searchMode === 'albums' }" @click="searchMode = 'albums'" x-text="t('albumsMode')"></button>
-              <button class="mode-btn" :class="{ active: searchMode === 'songs' }" @click="searchMode = 'songs'" x-text="t('songsMode')"></button>
+        <div class="topbar-controls">
+          <div class="segmented">
+            <button :class="{ 'is-active': searchMode === 'albums' }" @click="searchMode = 'albums'"
+                    x-text="t('albumsMode')"></button>
+            <button :class="{ 'is-active': searchMode === 'songs' }" @click="searchMode = 'songs'"
+                    x-text="t('songsMode')"></button>
+          </div>
+
+          <button class="chip" :class="{ 'is-active': filterExt === '' }" @click="filterExt = ''"
+                  x-text="t('allFilter')"></button>
+          <button class="chip" :class="{ 'is-active': filterExt === 'FLAC' }" @click="filterExt = 'FLAC'">FLAC</button>
+          <button class="chip" :class="{ 'is-active': filterExt === 'MP3' }" @click="filterExt = 'MP3'">MP3</button>
+
+          <select class="chip" x-model="sortBy" @change="setSort($event.target.value)"
+                  :aria-label="t('sortLabel')" x-show="searchMode === 'albums' && albums.length > 0">
+            <option value="relevance" x-text="t('sortRelevance')"></option>
+            <option value="quality" x-text="t('sortQuality')"></option>
+            <option value="size" x-text="t('sortSize')"></option>
+            <option value="tracks" x-text="t('sortTracks')"></option>
+            <option value="speed" x-text="t('sortSpeed')"></option>
+          </select>
+
+          <span class="badge is-accent" x-show="advancedSearch" x-text="t('advBadge')"></span>
+
+          <div class="segmented" x-show="searchMode === 'albums' && albums.length > 0">
+            <button :class="{ 'is-active': viewMode === 'list' }" @click="setViewMode('list')"
+                    :aria-label="t('viewList')">☰</button>
+            <button :class="{ 'is-active': viewMode === 'grid' }" @click="setViewMode('grid')"
+                    :aria-label="t('viewGrid')">⊞</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="error-banner" x-show="searchError">
+          <span>⚠</span><span x-text="searchError"></span>
+        </div>
+
+        <div class="searching-indicator" x-show="searching">
+          <div class="spinner"></div>
+          <span x-text="t('searchingNet') + ' · ' + albums.length + ' ' + t('albumsUnit')"></span>
+        </div>
+
+        <!-- Idle: recent searches + trending -->
+        <div x-show="!searching && !searchId && !searchError">
+          <div x-show="recent.length > 0">
+            <div class="section-header">
+              <span class="section-title" x-text="t('recentTitle')"></span>
+              <button class="chip" @click="clearRecent()" x-text="t('clearRecent')"></button>
             </div>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <button class="filter-btn" :class="{ active: filterExt === '' }" @click="filterExt = ''" x-text="t('allFilter')"></button>
-              <button class="filter-btn" :class="{ active: filterExt === 'FLAC' }" @click="filterExt = 'FLAC'">FLAC</button>
-              <button class="filter-btn" :class="{ active: filterExt === 'MP3' }" @click="filterExt = 'MP3'">MP3</button>
-              <span x-show="advancedSearch" style="padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; background:rgba(200,255,0,0.12); color:var(--accent); border:1px solid rgba(200,255,0,0.35);">ADV</span>
-              <div class="view-toggle" x-show="searchMode === 'albums' && filteredAlbums.length > 0">
-                <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'; localStorage.setItem('slskweb_viewMode', 'list')" title="Vista lista">☰</button>
-                <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'; localStorage.setItem('slskweb_viewMode', 'grid')" title="Vista grilla">⊞</button>
+            <div class="recent-row">
+              <template x-for="term in recent" :key="term">
+                <button class="chip" @click="doSearch(term)" x-text="term"></button>
+              </template>
+            </div>
+          </div>
+
+          <template x-if="trendingLoaded && trending.length > 0">
+            <div>
+              <div class="section-header">
+                <span class="section-title" x-text="t('trendingTitle')"></span>
+                <span class="section-sub" x-text="t('trendingSubtitle')"></span>
               </div>
+              <div class="trending-grid">
+                <template x-for="(album, index) in trending" :key="index">
+                  <button class="trending-card" @click="searchTrending(album)"
+                          :title="t('trendingSearch') + ': ' + album.artist + ' — ' + album.title">
+                    <div class="cover">
+                      <div class="cover-fallback">♪</div>
+                      <img :src="album.cover_url" alt="" loading="lazy" decoding="async"
+                           @error="$el.remove()">
+                    </div>
+                    <div>
+                      <div class="trending-card-title clamp-2" x-text="album.title"></div>
+                      <div class="trending-card-artist truncate" x-text="album.artist"></div>
+                    </div>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <div class="empty-state" x-show="trendingLoaded && trending.length === 0 && recent.length === 0">
+            <div class="empty-state-icon">⌕</div>
+            <div class="empty-state-text" x-text="t('emptySearch')"></div>
+          </div>
+        </div>
+
+        <!-- Few / no results: offer advanced search -->
+        <div x-show="showAdvancedHint">
+          <div class="empty-state" x-show="visibleAlbums.length === 0">
+            <div class="empty-state-icon">⌕</div>
+            <div class="empty-state-text" x-text="t('noResultsTitle')"></div>
+          </div>
+          <div class="suggestion">
+            <span class="suggestion-icon">⚡</span>
+            <div class="suggestion-body">
+              <div class="suggestion-title"
+                   x-text="visibleAlbums.length === 0 ? t('noResultsTitle') : t('fewResultsTitle')"></div>
+              <div class="suggestion-text"
+                   x-text="advancedSearch
+                     ? (visibleAlbums.length === 0 ? t('noResultsAlready') : t('fewResultsAlready'))
+                     : t('fewResultsText')"></div>
+              <button class="btn-download" style="align-self:flex-start" x-show="!advancedSearch"
+                      @click="toggleAdvanced()" x-text="t('fewResultsBtn')"></button>
             </div>
           </div>
         </div>
 
-        <div class="content">
-          <!-- Searching spinner -->
-          <div x-show="searching" class="searching-indicator">
-            <div class="spinner"></div>
-            <span><span x-text="t('searchingNet')"></span> <span x-text="albums.length"></span> <span x-text="t('albumsUnit')"></span></span>
+        <!-- Albums -->
+        <div x-show="searchMode === 'albums' && visibleAlbums.length > 0">
+          <div class="section-header">
+            <span class="section-title" x-text="t('albumsFound')"></span>
+            <span class="badge" x-text="visibleAlbums.length"></span>
           </div>
 
-          <!-- Empty state / Trending -->
-          <div x-show="!searching && albums.length === 0 && !searchId">
-
-            <!-- Trending grid (when data loaded) -->
-            <template x-if="trendingLoaded && trending.length > 0">
-              <div class="trending-wrap">
-                <div class="section-header">
-                  <span class="section-title" x-text="t('trendingTitle')"></span>
-                  <span style="font-size:10px; color:var(--muted); font-family:'Space Mono',monospace;" x-text="t('trendingSubtitle')"></span>
+          <!-- Grid -->
+          <div class="album-grid" x-show="viewMode === 'grid'">
+            <template x-for="album in visibleAlbums.slice(0, 200)" :key="album.id">
+              <div class="album-card">
+                <div class="cover">
+                  <div class="cover-fallback">♪</div>
+                  <img :src="coverForSearch(album)" alt="" loading="lazy" decoding="async"
+                       @error="$el.remove()">
+                  <div class="cover-tags">
+                    <span class="ext-badge" :class="extClass(album.extension)" x-text="album.extension"></span>
+                    <span class="ext-badge" :class="album.free_slots ? 'is-lossless' : ''"
+                          x-text="album.free_slots ? t('free') : t('busy')"></span>
+                  </div>
                 </div>
-                <div class="trending-grid">
-                  <template x-for="(a, i) in trending" :key="i">
-                    <div class="trending-card" @click="searchTrending(a)" :title="t('trendingSearch') + ': ' + a.artist + ' - ' + a.title">
-                      <img :src="a.cover_url" :alt="a.title" loading="lazy"
-                        onerror="this.style.opacity='0.2'">
-                      <div class="trending-card-info">
-                        <div class="trending-card-title" x-text="a.title"></div>
-                        <div class="trending-card-artist" x-text="a.artist"></div>
-                      </div>
+                <div>
+                  <div class="album-card-title clamp-2" :title="album.folder_path" x-text="album.folder_name"></div>
+                  <div class="album-card-artist truncate" x-text="album.artist_guess || album.username"></div>
+                </div>
+                <div class="album-card-meta">
+                  <span x-text="album.track_count + ' ' + t('tracksUnit')"></span>
+                  <span x-text="formatSize(album.total_size)"></span>
+                  <span x-show="album.bitrate" x-text="album.bitrate + 'k'"></span>
+                </div>
+                <button class="btn-download" :class="{ 'is-queued': queuedFolders.includes(album.folder_path) }"
+                        @click="downloadFolder(album)" :disabled="queuedFolders.includes(album.folder_path)"
+                        x-text="queuedFolders.includes(album.folder_path) ? t('queued') : t('download')"></button>
+              </div>
+            </template>
+          </div>
+
+          <!-- List -->
+          <div class="result-list" x-show="viewMode === 'list'">
+            <template x-for="album in visibleAlbums.slice(0, 200)" :key="album.id">
+              <div class="result-row" :class="{ 'is-open': expandedAlbum === album.id }">
+                <div class="result-main" role="button" tabindex="0"
+                     @click="expandedAlbum = expandedAlbum === album.id ? null : album.id"
+                     @keydown.enter="expandedAlbum = expandedAlbum === album.id ? null : album.id">
+                  <div class="cover cover-sm">
+                    <div class="cover-fallback">♪</div>
+                    <img :src="coverForSearch(album)" alt="" loading="lazy" decoding="async"
+                         @error="$el.remove()">
+                  </div>
+
+                  <div class="result-info">
+                    <div class="result-title clamp-2" :title="album.folder_path" x-text="album.folder_name"></div>
+                    <div class="result-artist truncate" x-text="album.artist_guess || album.username"></div>
+                    <div class="result-meta">
+                      <span class="ext-badge" :class="extClass(album.extension)" x-text="album.extension"></span>
+                      <span x-text="album.track_count + ' ' + t('tracksUnit')"></span>
+                      <span x-text="formatSize(album.total_size)"></span>
+                      <span x-show="album.bitrate" x-text="album.bitrate + ' kbps'"></span>
+                      <span :class="album.free_slots ? 'slot-free' : 'slot-busy'"
+                            x-text="album.free_slots ? '● ' + t('free') : '○ ' + t('busy')"></span>
+                    </div>
+                  </div>
+
+                  <div class="result-detail">
+                    <div>
+                      <span x-text="t('qualityLabel')"></span>
+                      <span x-text="album.bitrate ? album.bitrate + ' kbps' : '—'"></span>
+                    </div>
+                    <div>
+                      <span x-text="t('peerLabel')"></span>
+                      <span x-text="formatSpeed(album.upload_speed)"></span>
+                    </div>
+                  </div>
+
+                  <div class="result-actions">
+                    <span style="color:var(--muted);font-size:10px"
+                          x-text="expandedAlbum === album.id ? '▲' : '▼'"></span>
+                    <button class="btn-download" :class="{ 'is-queued': queuedFolders.includes(album.folder_path) }"
+                            @click.stop="downloadFolder(album)"
+                            :disabled="queuedFolders.includes(album.folder_path)"
+                            x-text="queuedFolders.includes(album.folder_path) ? t('queued') : t('download')"></button>
+                  </div>
+                </div>
+
+                <div class="track-list" x-show="expandedAlbum === album.id">
+                  <template x-for="(file, index) in album.files" :key="index">
+                    <div class="track-row">
+                      <span class="track-num" x-text="index + 1"></span>
+                      <span class="track-name truncate" x-text="baseName(file.filename)"></span>
+                      <span class="track-size" x-text="formatSize(file.size)"></span>
+                      <button class="icon-btn" @click.stop="downloadSingle(album.username, file)"
+                              :aria-label="t('download')">↓</button>
                     </div>
                   </template>
                 </div>
               </div>
             </template>
-
-            <!-- Fallback while loading or if Deezer unavailable -->
-            <div x-show="!trendingLoaded || trending.length === 0" class="empty-state">
-              <div class="empty-state-icon">⌕</div>
-              <div class="empty-state-text" x-text="t('emptySearch')"></div>
-            </div>
           </div>
+        </div>
 
-          <!-- No results / few results suggestion -->
-          <div x-show="!searching && searchId && filteredAlbums.length < 5 && searchMode === 'albums'">
-            <!-- Zero results empty state -->
-            <div x-show="filteredAlbums.length === 0" class="empty-state" style="padding-top:40px;">
-              <div class="empty-state-icon">⌕</div>
-              <div class="empty-state-text" x-text="t('noResultsTitle')"></div>
-            </div>
-            <!-- Suggestion card -->
-            <div class="adv-suggestion">
-              <div class="adv-suggestion-icon">⚡</div>
-              <div class="adv-suggestion-body">
-                <div class="adv-suggestion-title" x-text="filteredAlbums.length === 0 ? t('noResultsTitle') : t('fewResultsTitle')"></div>
-                <div class="adv-suggestion-text" x-text="advancedSearch ? (filteredAlbums.length === 0 ? t('noResultsAlready') : t('fewResultsAlready')) : t('fewResultsText')"></div>
-              </div>
-              <button
-                x-show="!advancedSearch"
-                class="adv-suggestion-btn"
-                @click="advancedSearch = true; savePreferences(); doSearch()"
-                x-text="t('fewResultsBtn')"
-              ></button>
-            </div>
+        <!-- Songs -->
+        <div x-show="searchMode === 'songs' && visibleSongs.length > 0">
+          <div class="section-header">
+            <span class="section-title" x-text="t('songsFound')"></span>
+            <span class="badge" x-text="visibleSongs.length"></span>
           </div>
-
-          <!-- Albums view -->
-          <div x-show="searchMode === 'albums' && filteredAlbums.length > 0">
-            <div class="section-header">
-              <span class="section-title" x-text="t('albumsFound')"></span>
-              <span class="badge" x-text="filteredAlbums.length + ' ' + (filteredAlbums.length === 1 ? t('albumUnit') : t('albumsUnit'))"></span>
-            </div>
-
-            <!-- Grid view -->
-            <div x-show="viewMode === 'grid'" class="search-results-grid">
-              <template x-for="(a, i) in filteredAlbums.slice(0, 200)" :key="a.folder_path + '::g::' + i">
-                <div class="search-result-card">
-                  <div class="src-cover">
-                    <img
-                      :src="'/api/covers/search?artist=' + encodeURIComponent(a.artist_guess) + '&album=' + encodeURIComponent(a.folder_name)"
-                      :alt="a.folder_name"
-                      onerror="this.style.opacity='0'"
-                    >
-                    <span class="src-ext ext-badge" :class="'ext-' + (a.extension === 'FLAC' || a.extension === 'MP3' ? a.extension : 'other')" x-text="a.extension"></span>
-                    <span x-show="a.free_slots" class="src-slot slot-free" x-text="t('free')"></span>
-                    <span x-show="!a.free_slots" class="src-slot slot-busy" x-text="t('busy')"></span>
-                  </div>
-                  <div class="src-info">
-                    <div class="src-title" :title="a.folder_path" x-text="a.folder_name"></div>
-                    <div class="src-artist" x-text="a.artist_guess || a.username"></div>
-                    <div class="src-meta">
-                      <span x-text="a.track_count + ' tracks'"></span>
-                      <span x-text="formatSize(a.total_size)"></span>
-                      <span x-show="a.bitrate" x-text="a.bitrate + 'k'"></span>
+          <div class="result-list">
+            <template x-for="(song, index) in visibleSongs.slice(0, 400)" :key="index">
+              <div class="result-row">
+                <div class="result-main" style="cursor:default">
+                  <span class="ext-badge" :class="extClass(song.extension)" x-text="song.extension"></span>
+                  <div class="result-info">
+                    <div class="result-title truncate" :title="song.filename" x-text="song.displayName"></div>
+                    <div class="result-artist truncate" x-text="song.folder_name"></div>
+                    <div class="result-meta">
+                      <span x-text="formatSize(song.size)"></span>
+                      <span x-show="song.bitrate" x-text="song.bitrate + ' kbps'"></span>
+                      <span x-text="formatSpeed(song.upload_speed)"></span>
                     </div>
                   </div>
-                  <button
-                    class="btn-download src-download"
-                    :class="{ downloading: downloadingFolders.has(a.folder_path) }"
-                    @click.stop="downloadFolder(a)"
-                    :disabled="downloadingFolders.has(a.folder_path)"
-                    x-text="downloadingFolders.has(a.folder_path) ? t('queued') : t('download')"
-                  ></button>
+                  <div class="result-actions">
+                    <button class="btn-download"
+                            @click="downloadSingle(song.username, { filename: song.filename, size: song.size })"
+                            x-text="t('download')"></button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DOWNLOADS ──────────────────────────────────────────────────── -->
+    <div class="view" x-show="view === 'downloads'">
+      <div class="topbar">
+        <div class="topbar-row">
+          <span class="topbar-title" x-text="t('downloadsTitle')"></span>
+          <span class="badge" x-text="downloads.length"></span>
+          <span style="flex:1"></span>
+          <button class="btn-ghost btn-sm" @click="clearCompleted()" x-show="downloads.length > 0"
+                  x-text="t('clearCompleted')"></button>
+          <button class="btn-ghost btn-sm" @click="loadDownloads()" x-text="t('refresh')"></button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="error-banner" x-show="downloadsError">
+          <span>⚠</span><span x-text="downloadsError"></span>
+        </div>
+
+        <div class="empty-state" x-show="!downloadsError && downloads.length === 0">
+          <div class="empty-state-icon">↓</div>
+          <div class="empty-state-text" x-text="t('noDownloads')"></div>
+          <div class="empty-state-text" style="font-size:12px" x-text="t('noDownloadsHint')"></div>
+        </div>
+
+        <template x-for="(group, index) in downloads" :key="group.id">
+          <div class="dl-card">
+            <div class="dl-head" role="button" tabindex="0"
+                 @click="expandedGroup = expandedGroup === index ? null : index"
+                 @keydown.enter="expandedGroup = expandedGroup === index ? null : index">
+              <div class="cover cover-md">
+                <div class="cover-fallback">♪</div>
+                <img :src="coverForFolder(group.folder_name)" alt="" loading="lazy" decoding="async"
+                     @error="$el.remove()">
+              </div>
+
+              <div class="dl-info">
+                <div class="dl-name clamp-2" :title="group.folder_name" x-text="group.folder_name"></div>
+                <div class="dl-meta">
+                  <span x-text="group.username"></span>
+                  <span x-text="group.files.length + ' ' + (group.files.length === 1 ? t('fileUnit') : t('filesUnit'))"></span>
+                  <span x-show="group.total_size > 0" x-text="formatSize(group.total_size)"></span>
+                  <span x-show="group.speed > 0" x-text="formatSpeed(group.speed)"></span>
+                  <span x-show="group.eta" x-text="formatEta(group.eta) + ' ' + t('etaLabel')"></span>
+                </div>
+                <div class="progress">
+                  <div class="progress-fill"
+                       :class="{
+                         'is-complete': group.state === 'Completed',
+                         'is-errored': group.state === 'Errored',
+                         'is-active': group.state === 'InProgress'
+                       }"
+                       :style="'width:' + (group.progress || 0) + '%'"></div>
+                </div>
+              </div>
+
+              <div class="dl-actions" @click.stop>
+                <span class="state-badge" :class="stateClass(group.state)" x-text="stateLabel(group.state)"></span>
+                <button class="icon-btn is-danger" @click="deleteFolder(group)"
+                        :aria-label="t('delete')">✕</button>
+              </div>
+            </div>
+
+            <div class="dl-tracks" x-show="expandedGroup === index">
+              <template x-for="(file, fileIndex) in group.files" :key="fileIndex">
+                <div class="dl-track">
+                  <span class="truncate" :title="file.filename" x-text="file.filename"></span>
+                  <span style="display:flex;align-items:center;gap:6px">
+                    <span class="state-badge" :class="stateClass(file.state)"
+                          x-text="file.percent > 0 && file.percent < 100
+                            ? file.percent.toFixed(0) + '%'
+                            : stateLabel(file.state)"></span>
+                    <button class="icon-btn is-danger" x-show="file.file_id && !file.state.includes('Completed')"
+                            @click="cancelFile(group, file)" :aria-label="t('cancelTransfer')">✕</button>
+                  </span>
+                  <div class="dl-track-bar progress" x-show="file.percent > 0 && file.percent < 100">
+                    <div class="progress-fill is-active" :style="'width:' + file.percent + '%'"></div>
+                  </div>
                 </div>
               </template>
             </div>
-
-            <!-- List view -->
-            <div x-show="viewMode === 'list'" class="results-wrap">
-              <table class="results-table">
-                <thead>
-                  <tr>
-                    <th x-text="t('colFormat')"></th>
-                    <th x-text="t('colAlbum')"></th>
-                    <th class="col-hide-mobile" x-text="t('colQuality')"></th>
-                    <th class="col-hide-mobile">TRACKS</th>
-                    <th class="col-hide-mobile" x-text="t('colSize')"></th>
-                    <th class="col-hide-mobile">PEER</th>
-                    <th class="col-hide-mobile">SLOT</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <template x-for="(a, i) in filteredAlbums.slice(0, 200)" :key="a.folder_path + '::' + i">
-                  <tbody>
-                    <tr style="cursor:pointer;" @click="expandedAlbum = expandedAlbum === a.folder_path ? null : a.folder_path">
-                      <td>
-                        <span class="ext-badge" :class="'ext-' + (a.extension === 'FLAC' || a.extension === 'MP3' ? a.extension : 'other')" x-text="a.extension"></span>
-                      </td>
-                      <td>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                          <img
-                            :src="'/api/covers/search?artist=' + encodeURIComponent(a.artist_guess) + '&album=' + encodeURIComponent(a.folder_name)"
-                            class="album-thumb"
-                            style="width:44px; height:44px; object-fit:cover; border-radius:4px; background:var(--surface2); flex-shrink:0;"
-                            onerror="this.style.visibility='hidden'"
-                          >
-                          <div>
-                            <div class="filename-cell" :title="a.folder_path" x-text="a.folder_name"></div>
-                            <div style="font-size:10px; color:var(--muted); margin-top:2px;" x-text="a.artist_guess || a.username"></div>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="quality-cell col-hide-mobile">
-                        <span x-text="a.bitrate ? a.bitrate + ' kbps' : '—'"></span>
-                        <span class="quality-muted" x-show="a.sample_rate"> · <span x-text="a.sample_rate ? (a.sample_rate/1000).toFixed(1) : ''"></span>kHz</span>
-                        <span class="quality-muted" x-show="a.bit_depth"> · <span x-text="a.bit_depth"></span>bit</span>
-                      </td>
-                      <td class="quality-cell quality-muted col-hide-mobile" x-text="a.track_count + ' tracks'"></td>
-                      <td class="quality-cell quality-muted col-hide-mobile" x-text="formatSize(a.total_size)"></td>
-                      <td class="peer-cell col-hide-mobile">
-                        <div class="peer-speed" x-text="formatSpeed(a.upload_speed)"></div>
-                        <div class="peer-queue" x-show="a.queue_length > 0"><span x-text="t('queueLabel')"></span>: <span x-text="a.queue_length"></span></div>
-                      </td>
-                      <td class="col-hide-mobile">
-                        <span x-show="a.free_slots" class="slot-free" x-text="t('free')"></span>
-                        <span x-show="!a.free_slots" class="slot-busy" x-text="t('busy')"></span>
-                      </td>
-                      <td style="white-space:nowrap;">
-                        <span x-text="expandedAlbum === a.folder_path ? '▲' : '▼'" style="color:var(--muted); font-size:10px; margin-right:6px;"></span>
-                        <button
-                          class="btn-download"
-                          :class="{ downloading: downloadingFolders.has(a.folder_path) }"
-                          @click.stop="downloadFolder(a)"
-                          :disabled="downloadingFolders.has(a.folder_path)"
-                          x-text="downloadingFolders.has(a.folder_path) ? t('queued') : t('download')"
-                        ></button>
-                      </td>
-                    </tr>
-                    <!-- Expanded track list -->
-                    <tr x-show="expandedAlbum === a.folder_path">
-                      <td colspan="8" style="padding:0;">
-                        <div class="track-list">
-                          <template x-for="(f, fi) in a.files" :key="fi">
-                            <div class="track-row">
-                              <span class="track-num" x-text="fi + 1"></span>
-                              <span class="track-name" x-text="f.filename.split('\\').pop().split('/').pop()"></span>
-                              <span class="track-size" x-text="formatSize(f.size)"></span>
-                              <button
-                                class="btn-download"
-                                style="padding:3px 10px; font-size:9px; flex-shrink:0;"
-                                @click.stop="downloadSingle(a.username, f)"
-                              >↓</button>
-                            </div>
-                          </template>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </template>
-              </table>
-            </div>
-            </div><!-- end list view -->
           </div>
+        </template>
+      </div>
+    </div>
 
-          <!-- Songs view -->
-          <div x-show="searchMode === 'songs' && flatSongs.length > 0">
-            <div class="section-header">
-              <span class="section-title" x-text="t('songsFound')"></span>
-              <span class="badge" x-text="flatSongs.length + ' ' + (flatSongs.length === 1 ? t('songUnit') : t('songsUnit'))"></span>
-            </div>
-            <div class="results-wrap">
-              <table class="results-table">
-                <thead>
-                  <tr>
-                    <th x-text="t('colFormat')"></th>
-                    <th x-text="t('colSong')"></th>
-                    <th x-text="t('colAlbumShort')"></th>
-                    <th x-text="t('colQuality')"></th>
-                    <th x-text="t('colSize')"></th>
-                    <th>PEER</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <template x-for="(s, i) in flatSongs.slice(0, 500)" :key="i">
-                    <tr>
-                      <td>
-                        <span class="ext-badge" :class="'ext-' + (s.extension === 'FLAC' || s.extension === 'MP3' ? s.extension : 'other')" x-text="s.extension"></span>
-                      </td>
-                      <td>
-                        <div class="filename-cell" :title="s.filename" x-text="s.displayName"></div>
-                      </td>
-                      <td>
-                        <div style="font-size:12px; color:var(--text); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="s.folder_name"></div>
-                        <div style="font-size:10px; color:var(--muted); margin-top:2px;" x-text="s.artist_guess || s.username"></div>
-                      </td>
-                      <td class="quality-cell">
-                        <span x-text="s.bitrate ? s.bitrate + ' kbps' : '—'"></span>
-                      </td>
-                      <td class="quality-cell quality-muted" x-text="formatSize(s.size)"></td>
-                      <td class="peer-cell">
-                        <div class="peer-speed" x-text="formatSpeed(s.upload_speed)"></div>
-                        <div class="peer-queue" x-show="s.queue_length > 0"><span x-text="t('queueLabel')"></span>: <span x-text="s.queue_length"></span></div>
-                      </td>
-                      <td>
-                        <button
-                          class="btn-download"
-                          @click="downloadSingle(s.username, {filename: s.filename, size: s.size})"
-                          x-text="t('download')"
-                        >'download')"
-                      </td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
-            </div>
-          </div>
+    <!-- ── LIBRARY ────────────────────────────────────────────────────── -->
+    <div class="view" x-show="view === 'library'">
+      <div class="topbar">
+        <div class="topbar-row">
+          <button class="btn-ghost btn-sm" x-show="openAlbumEntry" @click="closeAlbum()"
+                  x-text="'← ' + t('backToLibrary')"></button>
+          <span class="topbar-title" x-show="!openAlbumEntry" x-text="t('libraryTitle')"></span>
+          <span class="topbar-title truncate" x-show="openAlbumEntry"
+                x-text="openAlbumEntry ? openAlbumEntry.album : ''"></span>
+          <span class="badge" x-show="!openAlbumEntry" x-text="library.length"></span>
+          <span style="flex:1"></span>
+          <button class="btn-ghost btn-sm" @click="loadLibrary(true)" x-text="t('refresh')"></button>
         </div>
       </div>
-    </template>
 
-    <!-- Downloads view -->
-    <template x-if="view === 'downloads'">
-      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;" x-text="t('downloadsTitle')"></span>
-          <span class="badge" x-text="downloads.length + ' ' + (downloads.length === 1 ? t('albumUnit') : t('albumsUnit'))" style="margin-left:auto"></span>
-          <button class="btn-ghost" @click="loadDownloads()" x-text="t('refresh')"></button>
+      <div class="content">
+        <div class="error-banner" x-show="libraryError">
+          <span>⚠</span><span x-text="libraryError"></span>
         </div>
-        <div class="content">
-          <div x-show="downloads.length === 0" class="empty-state">
-            <div class="empty-state-icon">↓</div>
-            <div class="empty-state-text" x-text="t('noDownloads')"></div>
+
+        <div class="searching-indicator" x-show="libraryLoading">
+          <div class="spinner"></div><span x-text="t('libraryScanning')"></span>
+        </div>
+
+        <!-- Album grid -->
+        <div x-show="!openAlbumEntry && !libraryLoading">
+          <div class="empty-state" x-show="library.length === 0 && !libraryError">
+            <div class="empty-state-icon">♪</div>
+            <div class="empty-state-text" x-text="t('noLibrary')"></div>
+            <div class="empty-state-text" style="font-size:12px" x-text="t('noLibraryHint')"></div>
           </div>
 
-          <template x-for="(g, gi) in downloads" :key="g.username + '::' + g.directory">
-            <div class="dl-group">
-
-              <!-- Group header: cover + info + actions -->
-              <div class="dl-group-header" @click="expandedGroup = (expandedGroup === gi ? null : gi)">
-
-                <!-- Album art -->
-                <img class="dl-group-cover"
-                  :src="groupCoverUrl(g.folder_name)"
-                  @error="$el.style.display='none'; $el.nextElementSibling.style.display='flex'"
-                  loading="lazy"
-                  style="display:block">
-                <div class="dl-group-cover-placeholder" style="display:none">♪</div>
-
-                <!-- Folder info -->
-                <div class="dl-group-info">
-                  <div class="dl-group-name" :title="g.folder_name" x-text="g.folder_name"></div>
-                  <div class="dl-group-meta">
-                    <span x-text="g.username"></span>
-                    <span x-text="g.files.length + ' ' + (g.files.length === 1 ? t('fileUnit') : t('filesUnit'))"></span>
-                    <span x-show="g.total_size > 0" x-text="formatSize(g.total_size)"></span>
-                    <span x-show="g.speed > 0" x-text="formatSpeed(g.speed) + '/s'"></span>
-                  </div>
-                  <div class="dl-group-bar">
-                    <div class="dl-group-bar-fill"
-                      :class="{ completed: g.state === 'Completed', errored: g.state.includes('Errored') }"
-                      :style="'width:' + (g.progress || 0) + '%'">
-                    </div>
-                  </div>
+          <div class="library-grid">
+            <template x-for="entry in library" :key="entry.path">
+              <button class="library-card" @click="openAlbum(entry)">
+                <div class="cover">
+                  <div class="cover-fallback">♪</div>
+                  <img :src="coverForLibrary(entry)" alt="" loading="lazy" decoding="async"
+                       @error="$el.remove()">
                 </div>
-
-                <!-- State + delete -->
-                <div class="dl-group-actions" @click.stop>
-                  <span class="state-badge" :class="'state-' + g.state.split(',')[0].trim()" x-text="stateLabel(g.state)"></span>
-                  <button class="dl-btn-delete" @click="deleteFolder(g)" x-text="t('delete')"></button>
+                <div>
+                  <div class="library-card-title clamp-2" x-text="entry.album"></div>
+                  <div class="library-card-artist truncate"
+                       x-text="entry.artist || (entry.track_count + ' ' + t('tracksUnit'))"></div>
                 </div>
-              </div>
-
-              <!-- Track list (collapsible) -->
-              <div class="dl-tracks" x-show="expandedGroup === gi">
-                <template x-for="(f, fi) in g.files" :key="fi">
-                  <div class="dl-track-row">
-                    <div class="dl-track-name" :title="f.filename" x-text="f.filename"></div>
-                    <span class="state-badge"
-                      :class="'state-' + f.state.split(',')[0].trim()"
-                      x-text="stateLabel(f.state)"
-                      style="font-size:8px; padding:1px 5px; flex-shrink:0">
-                    </span>
-                    <div class="dl-track-bar">
-                      <div class="dl-track-bar-fill" :style="'width:' + (f.percent || 0) + '%'"></div>
-                    </div>
-                    <span class="dl-track-pct"
-                      x-show="f.percent > 0 && f.percent < 100"
-                      x-text="f.percent.toFixed(0) + '%'">
-                    </span>
-                  </div>
-                </template>
-              </div>
-
-            </div>
-          </template>
-        </div>
-      </div>
-    </template>
-
-    <!-- Settings view -->
-    <template x-if="view === 'settings'">
-      <div style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
-        <div class="topbar">
-          <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.1em;" x-text="t('settingsTitle')"></span>
-          <span x-show="platform" x-text="platform" style="margin-left:8px; padding:2px 8px; border-radius:3px; font-family:'Space Mono',monospace; font-size:9px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; background:rgba(200,255,0,0.08); color:var(--accent); border:1px solid rgba(200,255,0,0.2);"></span>
-        </div>
-        <div class="content" style="max-width:520px;">
-
-          <!-- Local mode: Soulseek account + music path -->
-          <template x-if="localSetup">
-            <div>
-              <div class="section-header" style="margin-bottom:20px;">
-                <span class="section-title" x-text="t('soulseekAccount')"></span>
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('usernameLabel')"></label>
-                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" :placeholder="t('usernameLabel').toLowerCase()">
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('passwordLabel')"></label>
-                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" :placeholder="t('passwordLabel').toLowerCase()">
-              </div>
-              <div class="section-header" style="margin:24px 0 20px;">
-                <span class="section-title" x-text="t('downloadsSection')"></span>
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('downloadFolder')"></label>
-                <input class="wizard-input" type="text" x-model="settingsForm.music_path">
-              </div>
-              <div x-show="settingsError" class="wizard-error" x-text="settingsError"></div>
-              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;" x-text="t('changesSaved')"></div>
-              <button class="wizard-btn" @click="saveSettings()" :disabled="settingsSaving">
-                <span x-show="!settingsSaving" x-text="t('saveChanges')"></span>
-                <span x-show="settingsSaving" x-text="t('saving')"></span>
               </button>
+            </template>
+          </div>
+        </div>
 
-              <!-- Advanced Search + Language toggles -->
-              <div class="section-header" style="margin:32px 0 16px; padding-top:24px; border-top:1px solid var(--border);">
-                <span class="section-title" x-text="t('searchSection')"></span>
-              </div>
-              <div class="field-group" style="flex-direction:row; align-items:center; justify-content:space-between; gap:16px;">
-                <div style="flex:1;">
-                  <label class="field-label" x-text="t('advSearchLabel')"></label>
-                  <div class="field-hint" x-text="t('advSearchHint')"></div>
-                </div>
-                <button @click="advancedSearch = !advancedSearch; savePreferences()"
-                  style="flex-shrink:0; min-width:54px; padding:6px 14px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="advancedSearch ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
-                  x-text="advancedSearch ? 'ON' : 'OFF'"></button>
-              </div>
-
-              <div class="section-header" style="margin:24px 0 16px; padding-top:20px; border-top:1px solid var(--border);">
-                <span class="section-title" x-text="t('langSection')"></span>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <button @click="setLang('es')"
-                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="lang === 'es' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
-                  🇦🇷 ES
-                </button>
-                <button @click="setLang('en')"
-                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="lang === 'en' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
-                  🇬🇧 EN
-                </button>
-              </div>
-            </div>
-          </template>
-
-          <!-- Remote mode: slskd connection + music path -->
-          <template x-if="!localSetup">
-            <div>
-              <div class="section-header" style="margin-bottom:20px;">
-                <span class="section-title" x-text="t('soulseekAccount')"></span>
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('usernameLabel')"></label>
-                <input class="wizard-input" type="text" x-model="settingsForm.soulseek_username" :placeholder="t('usernameLabel').toLowerCase()">
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('passwordLabel')"></label>
-                <input class="wizard-input" type="password" x-model="settingsForm.soulseek_password" :placeholder="t('passwordLabel').toLowerCase()">
-                <div class="field-hint" x-text="t('passwordHint')"></div>
-              </div>
-              <div class="section-header" style="margin:24px 0 20px;">
-                <span class="section-title" x-text="t('slskdConnection')"></span>
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('slskdUrlLabel')"></label>
-                <input class="wizard-input" type="text" x-model="settingsForm.slskd_url">
-              </div>
-              <div class="field-group">
-                <label class="field-label">API Key</label>
-                <input class="wizard-input" type="text" x-model="settingsForm.slskd_api_key">
-              </div>
-              <div class="section-header" style="margin:24px 0 20px;">
-                <span class="section-title" x-text="t('downloadsSection')"></span>
-              </div>
-              <div class="field-group">
-                <label class="field-label" x-text="t('downloadFolder')"></label>
-                <input class="wizard-input" type="text" x-model="settingsForm.music_path">
-              </div>
-              <div x-show="settingsError" class="wizard-error" x-text="settingsError"></div>
-              <div x-show="settingsOk" style="color:var(--accent); font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.08em; margin-bottom:16px;" x-text="t('changesSaved')"></div>
-              <button class="wizard-btn" @click="saveSettings()" :disabled="settingsSaving">
-                <span x-show="!settingsSaving" x-text="t('saveChanges')"></span>
-                <span x-show="settingsSaving" x-text="t('verifying')"></span>
-              </button>
-
-              <!-- Advanced Search + Language toggles -->
-              <div class="section-header" style="margin:32px 0 16px; padding-top:24px; border-top:1px solid var(--border);">
-                <span class="section-title" x-text="t('searchSection')"></span>
-              </div>
-              <div class="field-group" style="flex-direction:row; align-items:center; justify-content:space-between; gap:16px;">
-                <div style="flex:1;">
-                  <label class="field-label" x-text="t('advSearchLabel')"></label>
-                  <div class="field-hint" x-text="t('advSearchHint')"></div>
-                </div>
-                <button @click="advancedSearch = !advancedSearch; savePreferences()"
-                  style="flex-shrink:0; min-width:54px; padding:6px 14px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="advancedSearch ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'"
-                  x-text="advancedSearch ? 'ON' : 'OFF'"></button>
-              </div>
-
-              <div class="section-header" style="margin:24px 0 16px; padding-top:20px; border-top:1px solid var(--border);">
-                <span class="section-title" x-text="t('langSection')"></span>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <button @click="setLang('es')"
-                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="lang === 'es' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
-                  🇦🇷 ES
-                </button>
-                <button @click="setLang('en')"
-                  style="padding:6px 18px; border-radius:4px; font-family:'Space Mono',monospace; font-size:10px; font-weight:700; letter-spacing:0.1em; cursor:pointer; border:1px solid; transition:all 0.15s;"
-                  :style="lang === 'en' ? 'background:rgba(200,255,0,0.12); border-color:rgba(200,255,0,0.5); color:var(--accent);' : 'background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.15); color:var(--muted);'">
-                  🇬🇧 EN
-                </button>
-              </div>
-            </div>
-          </template>
-
-          <!-- Actualización -->
-          <div style="margin-top:32px; padding-top:24px; border-top:1px solid var(--border);">
-            <div class="section-header" style="margin-bottom:16px;">
-              <span class="section-title" x-text="t('updateSection')"></span>
-            </div>
-
-            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-              <span style="font-family:'Space Mono',monospace; font-size:10px; color:var(--muted);" x-text="t('currentVersion')"></span>
-              <span style="font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); font-weight:700;" x-text="appVersion || '—'"></span>
-              <span x-show="appCommit" style="font-family:'Space Mono',monospace; font-size:9px; color:var(--muted); opacity:0.6;" x-text="'(' + appCommit + ')'"></span>
-            </div>
-
-            <div x-show="updateLog" style="background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:10px 14px; margin-bottom:14px; font-family:'Space Mono',monospace; font-size:10px; color:var(--muted); white-space:pre-wrap;" x-text="updateLog"></div>
-            <div x-show="updateError" class="wizard-error" x-text="updateError"></div>
-            <div x-show="updateNeedsRestart" style="color:#fc6; font-family:'Space Mono',monospace; font-size:10px; letter-spacing:0.06em; margin-bottom:12px;" x-text="t('updateDownloaded')"></div>
-
-            <button class="wizard-btn" @click="triggerUpdate()" :disabled="updating"
-              :style="alreadyLatest
-                ? 'background:rgba(200,255,0,0.06); border:1px solid rgba(200,255,0,0.15); color:var(--accent); opacity:0.7;'
-                : 'background:transparent; border:1px solid rgba(200,255,0,0.2); color:var(--accent);'">
-              <span x-show="!updating" x-text="alreadyLatest ? t('upToDate') : t('updateBtn')"></span>
-              <span x-show="updating" x-text="t('updatingBtn')"></span>
-            </button>
+        <!-- Album detail -->
+        <div x-show="openAlbumEntry">
+          <div class="section-header">
+            <button class="btn btn-sm" @click="albumTracks.length && playTrack(albumTracks[0], albumTracks)"
+                    :disabled="!albumTracks.length" x-text="'▶ ' + t('playAlbum')"></button>
+            <span class="section-sub" x-text="openAlbumEntry
+              ? (openAlbumEntry.artist ? openAlbumEntry.artist + ' · ' : '') + formatSize(openAlbumEntry.total_size)
+              : ''"></span>
           </div>
 
+          <div class="searching-indicator" x-show="tracksLoading">
+            <div class="spinner"></div>
+          </div>
+
+          <div class="result-row">
+            <template x-for="track in albumTracks" :key="track.path">
+              <div class="lib-track" :class="{ 'is-playing': isPlaying(track) }">
+                <span class="track-num" x-text="track.track_no"></span>
+                <span class="track-name truncate" :title="track.filename" x-text="track.title"></span>
+                <span class="track-size" x-show="track.duration" x-text="formatTime(track.duration)"></span>
+                <button class="icon-btn" @click="playTrack(track, albumTracks)" :aria-label="t('play')"
+                        x-text="isPlaying(track) && player.playing ? '❚❚' : '▶'"></button>
+                <a class="icon-btn" :href="'/api/stream/download?path=' + encodeURIComponent(track.path)"
+                   :download="track.filename" :aria-label="t('saveToDevice')">⤓</a>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
-    </template>
+    </div>
+
+    <!-- ── SETTINGS ───────────────────────────────────────────────────── -->
+    <div class="view" x-show="view === 'settings'">
+      <div class="topbar">
+        <div class="topbar-row">
+          <span class="topbar-title" x-text="t('settingsTitle')"></span>
+          <span class="badge" x-show="platform" x-text="platform"></span>
+        </div>
+      </div>
+
+      <div class="content" style="max-width:560px">
+
+        <div class="settings-group">
+          <div class="section-header"><span class="section-title" x-text="t('soulseekAccount')"></span></div>
+          <div class="field">
+            <label class="field-label" for="s-user" x-text="t('usernameLabel')"></label>
+            <input id="s-user" class="input" type="text" autocomplete="username"
+                   x-model="settingsForm.soulseek_username">
+          </div>
+          <div class="field">
+            <label class="field-label" for="s-pass" x-text="t('passwordLabel')"></label>
+            <input id="s-pass" class="input" type="password" autocomplete="current-password"
+                   x-model="settingsForm.soulseek_password">
+            <div class="field-hint" x-show="!localSetup" x-text="t('passwordHint')"></div>
+          </div>
+        </div>
+
+        <div class="settings-group" x-show="!localSetup">
+          <div class="section-header"><span class="section-title" x-text="t('slskdConnection')"></span></div>
+          <div class="field">
+            <label class="field-label" for="s-url" x-text="t('slskdUrlLabel')"></label>
+            <input id="s-url" class="input" type="text" x-model="settingsForm.slskd_url">
+          </div>
+          <div class="field">
+            <label class="field-label" for="s-key" x-text="t('apiKeyLabel')"></label>
+            <input id="s-key" class="input" type="password" autocomplete="off"
+                   x-model="settingsForm.slskd_api_key">
+          </div>
+          <button class="btn-ghost btn-sm" @click="testConnection()" :disabled="testing"
+                  x-text="testing ? t('testing') : t('testConnection')"></button>
+          <div class="field-hint" x-show="testResult" x-text="testResult"></div>
+        </div>
+
+        <div class="settings-group">
+          <div class="section-header"><span class="section-title" x-text="t('downloadsSection')"></span></div>
+          <div class="field">
+            <label class="field-label" for="s-path" x-text="t('downloadFolder')"></label>
+            <input id="s-path" class="input" type="text" x-model="settingsForm.music_path">
+            <div class="field-hint" x-text="t('downloadFolderHint')"></div>
+          </div>
+
+          <div class="form-error" x-show="settingsError" x-text="settingsError"></div>
+          <div class="form-ok" x-show="settingsOk" x-text="'✓ ' + t('changesSaved')"></div>
+          <button class="btn" @click="saveSettings()" :disabled="settingsSaving"
+                  x-text="settingsSaving ? (localSetup ? t('connectingLong') : t('verifying')) : t('saveChanges')"></button>
+        </div>
+
+        <div class="settings-group">
+          <div class="section-header"><span class="section-title" x-text="t('searchSection')"></span></div>
+          <div class="field-row">
+            <div>
+              <span class="field-label" x-text="t('advSearchLabel')"></span>
+              <div class="field-hint" x-text="t('advSearchHint')"></div>
+            </div>
+            <button class="switch" :class="{ 'is-on': advancedSearch }"
+                    @click="advancedSearch = !advancedSearch; savePreferences()"
+                    role="switch" :aria-checked="advancedSearch" :aria-label="t('advSearchLabel')"></button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="section-header"><span class="section-title" x-text="t('securitySection')"></span></div>
+          <div class="field">
+            <div class="field-hint" style="margin-top:0"
+                 x-text="authManagedByEnv ? t('appPasswordEnvHint') : t('appPasswordHint')"></div>
+          </div>
+          <template x-if="!authManagedByEnv">
+            <div>
+              <div class="field">
+                <label class="field-label" for="s-appass" x-text="t('newPassword')"></label>
+                <input id="s-appass" class="input" type="password" autocomplete="new-password"
+                       x-model="newPassword" :placeholder="authEnabled ? '••••••' : ''">
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-sm" @click="savePassword()"
+                        :disabled="passwordSaving || !newPassword.trim()" x-text="t('setPassword')"></button>
+                <button class="btn-ghost btn-sm" x-show="authEnabled"
+                        @click="newPassword = ''; savePassword()" :disabled="passwordSaving"
+                        x-text="t('removePassword')"></button>
+                <button class="btn-ghost btn-sm" x-show="authEnabled" @click="logout()"
+                        x-text="t('logout')"></button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div class="settings-group" x-show="installPrompt">
+          <div class="section-header"><span class="section-title" x-text="t('installSection')"></span></div>
+          <div class="field-hint" style="margin-bottom:12px" x-text="t('installHint')"></div>
+          <button class="btn btn-sm" @click="promptInstall()" x-text="t('installBtn')"></button>
+        </div>
+
+        <div class="settings-group">
+          <div class="section-header"><span class="section-title" x-text="t('langSection')"></span></div>
+          <div style="display:flex;gap:8px">
+            <button class="chip" :class="{ 'is-active': lang === 'es' }" @click="setLang('es')">ES</button>
+            <button class="chip" :class="{ 'is-active': lang === 'en' }" @click="setLang('en')">EN</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="section-header"><span class="section-title" x-text="t('updateSection')"></span></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <span class="field-label" style="margin:0" x-text="t('currentVersion')"></span>
+            <span class="badge is-accent" x-text="appVersion || '—'"></span>
+            <span class="badge" x-show="appCommit" x-text="appCommit"></span>
+          </div>
+          <div class="code-block" x-show="updateLog" x-text="updateLog" style="margin-bottom:12px"></div>
+          <div class="form-error" x-show="updateError" x-text="updateError"></div>
+          <div class="form-ok" style="color:#fc6" x-show="updateNeedsRestart" x-text="t('updateDownloaded')"></div>
+          <button class="btn-ghost" @click="triggerUpdate()" :disabled="updating"
+                  x-text="updating ? t('updatingBtn') : (alreadyLatest ? t('upToDate') : t('updateBtn'))"></button>
+        </div>
+
+      </div>
+    </div>
 
   </div><!-- /main -->
 
-  <!-- Toasts -->
+  <!-- ══ MINI PLAYER ════════════════════════════════════════════════════ -->
+  <div class="player" x-show="player.track">
+    <div class="player-seek" @click="seek($event)">
+      <div class="player-seek-fill"
+           :style="'width:' + (player.duration ? (player.position / player.duration * 100) : 0) + '%'"></div>
+    </div>
+
+    <button class="player-play" @click="togglePlay()"
+            :aria-label="player.playing ? t('pause') : t('play')"
+            x-text="player.playing ? '❚❚' : '▶'"></button>
+
+    <div class="player-info">
+      <div class="player-title truncate" x-text="player.track ? (player.track.title || player.track.filename) : ''"></div>
+      <div class="player-artist truncate"
+           x-text="formatTime(player.position) + ' / ' + formatTime(player.duration)"></div>
+    </div>
+
+    <div class="player-actions">
+      <button class="icon-btn" @click="playPrevious()" :aria-label="t('previousTrack')">⏮</button>
+      <button class="icon-btn" @click="playNext()" :aria-label="t('nextTrack')">⏭</button>
+      <button class="icon-btn" @click="closePlayer()" :aria-label="t('closePlayer')">✕</button>
+    </div>
+  </div>
+
+  <!-- ══ BOTTOM NAV (phone) ═════════════════════════════════════════════ -->
+  <nav class="bottom-nav">
+    <button class="bottom-nav-item" :class="{ 'is-active': view === 'search' }" @click="go('search')">
+      <span class="nav-icon">⌕</span><span x-text="t('navSearch')"></span>
+    </button>
+    <button class="bottom-nav-item" :class="{ 'is-active': view === 'downloads' }" @click="go('downloads')">
+      <span class="nav-icon">↓</span><span x-text="t('navDownloads')"></span>
+      <span class="nav-badge" x-show="activeDownloads > 0" x-text="activeDownloads"></span>
+    </button>
+    <button class="bottom-nav-item" :class="{ 'is-active': view === 'library' }" @click="go('library')">
+      <span class="nav-icon">♪</span><span x-text="t('navLibrary')"></span>
+    </button>
+    <button class="bottom-nav-item" :class="{ 'is-active': view === 'settings' }" @click="go('settings')">
+      <span class="nav-icon">⚙</span><span x-text="t('navSettings')"></span>
+    </button>
+  </nav>
+
+  <!-- ══ CONFIRM DIALOG ═════════════════════════════════════════════════ -->
+  <div class="overlay is-dim" x-show="confirmState.open" @keydown.escape.window="resolveConfirm(false)">
+    <div class="modal">
+      <div class="modal-title" x-text="confirmState.title"></div>
+      <div class="modal-text" x-text="confirmState.body"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" @click="resolveConfirm(false)" x-text="t('cancelBtn')"></button>
+        <button class="btn-danger" @click="resolveConfirm(true)" x-text="confirmState.label"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOASTS ═════════════════════════════════════════════════════════ -->
   <div class="toast-container">
-    <template x-for="(t, i) in toasts" :key="i">
-      <div class="toast" :class="{ error: t.error }" x-text="t.msg"></div>
+    <template x-for="item in toasts" :key="item.id">
+      <div class="toast" :class="{ 'is-error': item.isError }" x-text="item.message"></div>
     </template>
   </div>
 
 </div><!-- /app -->
-
-<!-- Bottom nav duplicado eliminado -->
-
-<script>
-const TRANSLATIONS = {
-  es: {
-    navSearch: 'Buscar', navDownloads: 'Descargas', navSettings: 'Ajustes',
-    connected: 'CONECTADO', disconnected: 'DESCONECTADO',
-    searchPlaceholder: 'Artista, álbum, canción...',
-    searchBtn: 'BUSCAR', searchingBtn: 'BUSCANDO...', stopBtn: 'DETENER',
-    albumsMode: 'ÁLBUMES', songsMode: 'CANCIONES', allFilter: 'TODOS',
-    searchingNet: 'Buscando en la red...', albumsUnit: 'álbumes', albumUnit: 'álbum',
-    songsUnit: 'canciones', songUnit: 'canción',
-    emptySearch: 'Buscá un artista o álbum para empezar',
-    noResultsTitle: 'Sin resultados',
-    fewResultsTitle: 'Pocos resultados',
-    fewResultsText: 'La búsqueda normal filtra por calidad y elimina duplicados. El modo avanzado retorna todos los resultados sin filtrar.',
-    fewResultsBtn: 'Activar búsqueda avanzada y repetir',
-    fewResultsAlready: 'Ya estás en modo avanzado — no hay más resultados disponibles en la red.',
-    noResultsAlready: 'No se encontraron resultados. Ya estás en modo avanzado, no hay más resultados disponibles.',
-
-    trendingTitle: 'TENDENCIAS', trendingSubtitle: 'Álbumes populares ahora',
-    trendingSearch: 'Buscar en Soulseek',
-    albumsFound: 'ÁLBUMES ENCONTRADOS', songsFound: 'CANCIONES ENCONTRADAS',
-    colFormat: 'FORMATO', colAlbum: 'ÁLBUM / CARPETA', colQuality: 'CALIDAD',
-    colSize: 'TAMAÑO', colSong: 'CANCIÓN', colAlbumShort: 'ÁLBUM',
-    free: '● libre', busy: '○ ocupado', queued: '✓ EN COLA', download: '↓ DESCARGAR',
-    queueLabel: 'cola', filesUnit: 'archivos', fileUnit: 'archivo',
-    downloadsTitle: 'DESCARGAS', refresh: '↺ ACTUALIZAR', noDownloads: 'No hay descargas', delete: '✕ BORRAR',
-    settingsTitle: 'AJUSTES', soulseekAccount: 'CUENTA SOULSEEK',
-    usernameLabel: 'Usuario', passwordLabel: 'Contraseña', passwordHint: 'Dejá en blanco para no cambiar.',
-    slskdConnection: 'CONEXIÓN SLSKD', slskdUrlLabel: 'URL de slskd',
-    downloadsSection: 'DESCARGAS', downloadFolder: 'Carpeta de descargas',
-    changesSaved: '[OK] CAMBIOS GUARDADOS', saveChanges: 'GUARDAR CAMBIOS',
-    saving: 'GUARDANDO...', verifying: 'VERIFICANDO...',
-    searchSection: 'BÚSQUEDA',
-    advSearchLabel: 'Advanced Search',
-    advSearchHint: 'Retorna todos los resultados sin filtrar ni ordenar. Útil para encontrar contenido específico que no aparece en la búsqueda normal.',
-    updateSection: 'ACTUALIZACIÓN', currentVersion: 'VERSIÓN ACTUAL',
-    updateDownloaded: '[!] Actualización descargada. Cerrá y volvé a abrir la aplicación para aplicarla.',
-    updateBtn: '↑ ACTUALIZAR A ÚLTIMA VERSIÓN', upToDate: '✓ ÚLTIMA VERSIÓN', updatingBtn: 'ACTUALIZANDO...',
-    langSection: 'IDIOMA',
-    settingsSaved: '[OK] Ajustes guardados', connError: 'No se pudo conectar con el servidor.',
-    unknownError: 'Error desconocido', updatedRestarting: '✓ Actualizado — reiniciando...',
-    updateConnError: 'Error de conexión. El servidor puede estar reiniciando — recargá la página en unos segundos.',
-    downloadingAlbum: '↓ Descargando álbum', dlError: 'Error al iniciar descarga',
-    deleted: '✓ Eliminado', deleteError: 'Error al borrar',
-    searchError: 'Error al iniciar búsqueda',
-    confirmDelete: '¿Borrar "{name}" y sus archivos del disco?',
-  },
-  en: {
-    navSearch: 'Search', navDownloads: 'Downloads', navSettings: 'Settings',
-    connected: 'CONNECTED', disconnected: 'DISCONNECTED',
-    searchPlaceholder: 'Artist, album, song...',
-    searchBtn: 'SEARCH', searchingBtn: 'SEARCHING...', stopBtn: 'STOP',
-    albumsMode: 'ALBUMS', songsMode: 'SONGS', allFilter: 'ALL',
-    searchingNet: 'Searching network...', albumsUnit: 'albums', albumUnit: 'album',
-    songsUnit: 'songs', songUnit: 'song',
-    emptySearch: 'Search for an artist or album to get started',
-    noResultsTitle: 'No results',
-    fewResultsTitle: 'Few results',
-    fewResultsText: 'Normal search filters by quality and removes duplicates. Advanced mode returns all results unfiltered.',
-    fewResultsBtn: 'Activate advanced search and try again',
-    fewResultsAlready: 'You\'re already in advanced mode — no more results available on the network.',
-    noResultsAlready: 'No results found. You are already in advanced mode, no more results available.',
-
-    trendingTitle: 'TRENDING', trendingSubtitle: 'Popular albums right now',
-    trendingSearch: 'Search on Soulseek',
-    albumsFound: 'ALBUMS FOUND', songsFound: 'SONGS FOUND',
-    colFormat: 'FORMAT', colAlbum: 'ALBUM / FOLDER', colQuality: 'QUALITY',
-    colSize: 'SIZE', colSong: 'SONG', colAlbumShort: 'ALBUM',
-    free: '● free', busy: '○ busy', queued: '✓ QUEUED', download: '↓ DOWNLOAD',
-    queueLabel: 'queue', filesUnit: 'files', fileUnit: 'file',
-    downloadsTitle: 'DOWNLOADS', refresh: '↺ REFRESH', noDownloads: 'No downloads', delete: '✕ DELETE',
-    settingsTitle: 'SETTINGS', soulseekAccount: 'SOULSEEK ACCOUNT',
-    usernameLabel: 'Username', passwordLabel: 'Password', passwordHint: 'Leave blank to keep unchanged.',
-    slskdConnection: 'SLSKD CONNECTION', slskdUrlLabel: 'slskd URL',
-    downloadsSection: 'DOWNLOADS', downloadFolder: 'Downloads folder',
-    changesSaved: '[OK] CHANGES SAVED', saveChanges: 'SAVE CHANGES',
-    saving: 'SAVING...', verifying: 'VERIFYING...',
-    searchSection: 'SEARCH',
-    advSearchLabel: 'Advanced Search',
-    advSearchHint: "Returns all results unfiltered and unsorted. Useful for finding specific content that doesn't show up in normal search.",
-    updateSection: 'UPDATE', currentVersion: 'CURRENT VERSION',
-    updateDownloaded: '[!] Update downloaded. Close and reopen the application to apply it.',
-    updateBtn: '↑ UPDATE TO LATEST VERSION', upToDate: '✓ UP TO DATE', updatingBtn: 'UPDATING...',
-    langSection: 'LANGUAGE',
-    settingsSaved: '[OK] Settings saved', connError: 'Could not connect to the server.',
-    unknownError: 'Unknown error', updatedRestarting: '✓ Updated — restarting...',
-    updateConnError: 'Connection error. The server may be restarting — reload the page in a few seconds.',
-    downloadingAlbum: '↓ Downloading album', dlError: 'Error starting download',
-    deleted: '✓ Deleted', deleteError: 'Error deleting',
-    searchError: 'Error starting search',
-    confirmDelete: 'Delete "{name}" and its files from disk?',
-  }
-};
-
-function app() {
-  return {
-    view: 'search',
-    query: '',
-    searching: false,
-    searchId: null,
-    searchPoll: null,
-    albums: [],
-    filterExt: '',
-    downloads: [],
-    downloadPoll: null,
-    libraryAlbums: [],
-    libraryLoading: false,
-    connected: false,
-    downloadingFolders: new Set(),
-    toasts: [],
-    searchMode: 'albums',
-    expandedAlbum: null,
-    expandedGroup: null,
-
-    // Setup wizard
-    setupDone: null,      // null = cargando, false = necesita config, true = listo
-    localSetup: false,    // true = instalación Windows autónoma (install.ps1)
-    platform: '',
-    setupForm: { slskd_url: '', slskd_api_key: '', music_path: '' },
-    soulseekForm: { soulseek_username: '', soulseek_password: '', music_path: '' },
-    setupError: '',
-    setupSaving: false,
-
-    // Settings panel
-    settingsForm: { soulseek_username: '', soulseek_password: '', music_path: '', slskd_url: '', slskd_api_key: '' },
-    settingsSaving: false,
-    settingsError: '',
-    settingsOk: false,
-    advancedSearch: false,
-    lang: localStorage.getItem('slskweb_lang') || 'es',
-    alreadyLatest: false,
-    trending: [],
-    trendingLoaded: false,
-    viewMode: localStorage.getItem('slskweb_viewMode') || 'list',
-
-    t(key) {
-      return (TRANSLATIONS[this.lang] || TRANSLATIONS.es)[key] || (TRANSLATIONS.es[key] || key);
-    },
-
-    // Update
-    appVersion: '',
-    appCommit: '',
-    updating: false,
-    updateLog: '',
-    updateError: '',
-    updateNeedsRestart: false,
-
-    get filteredAlbums() {
-      if (!this.filterExt) return this.albums;
-      return this.albums.filter(a => a.extension === this.filterExt);
-    },
-
-    get flatSongs() {
-      const songs = [];
-      for (const a of this.albums) {
-        for (const f of a.files) {
-          const name = f.filename.split('\\').pop().split('/').pop();
-          songs.push({
-            filename: f.filename,
-            displayName: name,
-            size: f.size,
-            extension: a.extension,
-            bitrate: a.bitrate,
-            username: a.username,
-            folder_name: a.folder_name,
-            artist_guess: a.artist_guess,
-            upload_speed: a.upload_speed,
-            free_slots: a.free_slots,
-            queue_length: a.queue_length,
-          });
-        }
-      }
-      if (this.filterExt) return songs.filter(s => s.extension === this.filterExt);
-      return songs;
-    },
-
-    get activeDownloads() {
-      return this.downloads.filter(g => g.state === 'InProgress').length;
-    },
-
-    async init() {
-      await this.checkSetup();
-      this.loadVersion();
-      this.loadTrending();
-      if (this.setupDone) {
-        await this.checkStatus();
-        setInterval(() => this.checkStatus(), 10000);
-      }
-      // Auto-refresh downloads if on that view
-      this.downloadPoll = setInterval(() => {
-        if (this.view === 'downloads') this.loadDownloads();
-      }, 3000);
-    },
-
-    async checkSetup() {
-      try {
-        const r = await fetch('/api/setup/status');
-        const data = await r.json();
-        this.localSetup = !!data.local_setup;
-        this.platform = data.platform || '';
-        if (data.configured) {
-          this.setupDone = true;
-          if (data.slskd_url)   this.setupForm.slskd_url  = data.slskd_url;
-          if (data.music_path)  this.setupForm.music_path = data.music_path;
-          if (data.music_path)  this.soulseekForm.music_path = data.music_path;
-        } else {
-          this.setupDone = false;
-          if (data.music_path)  this.soulseekForm.music_path = data.music_path;
-        }
-      } catch {
-        this.setupDone = false;
-      }
-    },
-
-    // Modo remoto: el usuario ya tiene slskd corriendo en otro servidor
-    async saveSetup() {
-      this.setupError = '';
-      this.setupSaving = true;
-      try {
-        const r = await fetch('/api/setup/credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.setupForm)
-        });
-        const data = await r.json();
-        if (data.ok) {
-          this.setupDone = true;
-          await this.checkStatus();
-          setInterval(() => this.checkStatus(), 10000);
-          this.toast('✓ Configuración guardada');
-        } else {
-          this.setupError = data.error || 'Error desconocido';
-        }
-      } catch (e) {
-        this.setupError = 'No se pudo conectar con el servidor.';
-      } finally {
-        this.setupSaving = false;
-      }
-    },
-
-    // Modo local Windows: configura slskd automáticamente
-    async saveLocalSetup() {
-      this.setupError = '';
-      this.setupSaving = true;
-      try {
-        const r = await fetch('/api/setup/soulseek', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.soulseekForm)
-        });
-        const data = await r.json();
-        if (data.ok) {
-          this.setupDone = true;
-          await this.checkStatus();
-          setInterval(() => this.checkStatus(), 10000);
-          this.toast('✓ ¡Listo! Conectado a Soulseek');
-        } else {
-          this.setupError = data.error || 'Error desconocido';
-        }
-      } catch (e) {
-        this.setupError = 'No se pudo conectar con el servidor.';
-      } finally {
-        this.setupSaving = false;
-      }
-    },
-
-    async loadTrending() {
-      try {
-        const r = await fetch('/api/covers/trending');
-        this.trending = await r.json();
-        this.trendingLoaded = true;
-      } catch(e) { this.trendingLoaded = true; }
-    },
-
-    searchTrending(album) {
-      this.query = album.artist ? album.artist + ' - ' + album.title : album.title;
-      this.doSearch();
-    },
-
-    async loadVersion() {
-      try {
-        const r = await fetch('/api/setup/version');
-        const d = await r.json();
-        this.appVersion = d.version;
-        this.appCommit  = d.commit;
-      } catch(e) {}
-    },
-
-    async triggerUpdate() {
-      this.updating = true;
-      this.updateLog = '';
-      this.updateError = '';
-      this.updateNeedsRestart = false;
-      try {
-        const r = await fetch('/api/setup/update', { method: 'POST' });
-        const d = await r.json();
-        if (!d.ok) {
-          this.updateError = d.error || 'Error desconocido';
-          return;
-        }
-        if (d.already_latest) {
-          this.alreadyLatest = true;
-          this.updateLog = '✓ ' + this.t('upToDate') + ' (' + (d.version || this.appVersion) + ')';
-        } else {
-          this.alreadyLatest = false;
-          this.updateLog = (d.pull_output || '') + '\n✓ Actualizado a ' + (d.version || '?');
-          if (d.needs_restart) {
-            this.updateNeedsRestart = true;
-          } else {
-            this.toast(this.t('updatedRestarting'));
-            // Server will restart; reconnect after a few seconds
-            await new Promise(r => setTimeout(r, 4000));
-            window.location.reload();
-          }
-        }
-        this.appVersion = d.version || this.appVersion;
-      } catch(e) {
-        this.updateError = this.t('updateConnError');
-      } finally {
-        this.updating = false;
-      }
-    },
-
-    async loadSettings() {
-      try {
-        const r = await fetch('/api/setup/settings');
-        const data = await r.json();
-        this.platform = data.platform || this.platform;
-        this.settingsForm.soulseek_username = data.soulseek_username || '';
-        this.settingsForm.soulseek_password = data.soulseek_password || '';
-        this.settingsForm.music_path = data.music_path || '';
-        this.settingsForm.slskd_url = data.slskd_url || '';
-        this.settingsForm.slskd_api_key = data.slskd_api_key || '';
-        this.advancedSearch = !!data.advanced_search;
-        if (data.lang) { this.lang = data.lang; localStorage.setItem('slskweb_lang', this.lang); }
-        this.settingsError = '';
-        this.settingsOk = false;
-      } catch {}
-    },
-
-    async saveSettings() {
-      this.settingsError = '';
-      this.settingsOk = false;
-      this.settingsSaving = true;
-      try {
-        const url  = this.localSetup ? '/api/setup/soulseek' : '/api/setup/credentials';
-        const body = this.localSetup
-          ? { soulseek_username: this.settingsForm.soulseek_username,
-              soulseek_password: this.settingsForm.soulseek_password,
-              music_path:        this.settingsForm.music_path }
-          : { slskd_url:          this.settingsForm.slskd_url,
-              slskd_api_key:      this.settingsForm.slskd_api_key,
-              music_path:         this.settingsForm.music_path,
-              soulseek_username:  this.settingsForm.soulseek_username,
-              soulseek_password:  this.settingsForm.soulseek_password };
-        const r = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const data = await r.json();
-        if (data.ok) {
-          this.settingsOk = true;
-          this.toast(this.t('settingsSaved'));
-        } else {
-          this.settingsError = data.error || this.t('unknownError');
-        }
-      } catch {
-        this.settingsError = this.t('connError');
-      } finally {
-        this.settingsSaving = false;
-      }
-    },
-
-    async checkStatus() {
-      try {
-        const r = await fetch('/api/downloads/');
-        this.connected = r.ok;
-      } catch { this.connected = false; }
-    },
-
-    async doSearch() {
-      if (!this.query.trim()) return;
-      this.stopSearch();
-      this.albums = [];
-      this.searching = true;
-
-      try {
-        const r = await fetch('/api/search/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: this.query })
-        });
-        const data = await r.json();
-        this.searchId = data.search_id;
-        this.pollResults();
-      } catch(e) {
-        this.toast(this.t('searchError'), true);
-        this.searching = false;
-      }
-    },
-
-    async savePreferences() {
-      try {
-        await fetch('/api/setup/preferences', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ advanced_search: this.advancedSearch, lang: this.lang }),
-        });
-      } catch {}
-    },
-
-    setLang(l) {
-      this.lang = l;
-      localStorage.setItem('slskweb_lang', l);
-      this.savePreferences();
-    },
-
-    pollResults() {
-      this.searchPoll = setInterval(async () => {
-        if (!this.searchId) return;
-        try {
-          const r = await fetch('/api/search/' + this.searchId + '?raw=' + this.advancedSearch);
-          const data = await r.json();
-          this.albums = data.albums || [];
-          if (data.state && data.state.includes('Completed')) {
-            this.searching = false;
-            clearInterval(this.searchPoll);
-          }
-        } catch(e) {}
-      }, 1500);
-
-      setTimeout(() => {
-        this.searching = false;
-        clearInterval(this.searchPoll);
-      }, 30000);
-    },
-
-    stopSearch() {
-      clearInterval(this.searchPoll);
-      this.searching = false;
-      if (this.searchId) {
-        fetch('/api/search/' + this.searchId, { method: 'DELETE' });
-        this.searchId = null;
-      }
-    },
-
-    async downloadFolder(a) {
-      this.downloadingFolders = new Set([...this.downloadingFolders, a.folder_path]);
-      try {
-        const resp = await fetch('/api/downloads/folder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: a.username,
-            files: a.files
-          })
-        });
-        if (resp.ok) {
-          this.toast(this.t('downloadingAlbum') + ': ' + a.folder_name + ' (' + a.track_count + ' tracks)');
-        } else {
-          this.toast(this.t('dlError'), true);
-          this.downloadingFolders.delete(a.folder_path);
-          this.downloadingFolders = new Set(this.downloadingFolders);
-        }
-      } catch(e) {
-        this.toast(this.t('connError'), true);
-      }
-    },
-
-    async downloadSingle(username, file) {
-      try {
-        const resp = await fetch('/api/downloads/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, filename: file.filename, size: file.size })
-        });
-        if (resp.ok) {
-          const name = file.filename.split('\\').pop().split('/').pop();
-          this.toast('↓ ' + name);
-        } else {
-          this.toast(this.t('dlError'), true);
-        }
-      } catch(e) {
-        this.toast(this.t('connError'), true);
-      }
-    },
-
-    async loadDownloads() {
-      try {
-        const r = await fetch('/api/downloads/');
-        this.downloads = await r.json();
-      } catch(e) {}
-    },
-
-    groupCoverUrl(folderName) {
-      return `/api/covers/folder?folder_name=${encodeURIComponent(folderName)}`;
-    },
-
-    stateLabel(state) {
-      const s = (state || '').split(',')[0].trim();
-      const map = {
-        'Completed':  '✓ OK',
-        'InProgress': '↓ DESC.',
-        'Queued':     '⏸ COLA',
-        'Requested':  '⟳ PEDIDO',
-        'Errored':    '✗ ERROR',
-        'Cancelled':  '✕ CANCEL.',
-      };
-      return map[s] || s;
-    },
-
-    async deleteFolder(group) {
-      if (!confirm(this.t('confirmDelete').replace('{name}', group.folder_name))) return;
-      try {
-        const r = await fetch('/api/downloads/folder', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: group.username,
-            file_ids: group.file_ids,
-            local_paths: group.local_paths,
-            folder_name: group.folder_name,
-            filenames: group.files.map(f => f.filename),
-          })
-        });
-        const data = await r.json();
-        if (data.ok) {
-          this.toast(this.t('deleted') + ': ' + group.folder_name);
-          await this.loadDownloads();
-        } else {
-          this.toast(this.t('deleteError'), true);
-        }
-      } catch(e) {
-        this.toast(this.t('connError'), true);
-      }
-    },
-
-    async loadLibrary() {
-      this.libraryLoading = true;
-      try {
-        const r = await fetch('/api/library/albums');
-        this.libraryAlbums = await r.json();
-      } catch(e) {
-        this.toast('Error cargando librería', true);
-      } finally {
-        this.libraryLoading = false;
-      }
-    },
-
-    formatSize(bytes) {
-      if (!bytes) return '—';
-      if (bytes > 1e9) return (bytes/1e9).toFixed(2) + ' GB';
-      if (bytes > 1e6) return (bytes/1e6).toFixed(1) + ' MB';
-      return (bytes/1e3).toFixed(0) + ' KB';
-    },
-
-    formatSpeed(bps) {
-      if (!bps) return '—';
-      if (bps > 1e6) return (bps/1e6).toFixed(1) + ' MB/s';
-      if (bps > 1e3) return (bps/1e3).toFixed(0) + ' KB/s';
-      return bps + ' B/s';
-    },
-
-    toast(msg, error = false) {
-      this.toasts.push({ msg, error });
-      setTimeout(() => this.toasts.shift(), 3500);
-    }
-  }
-}
-</script>
 </body>
 </html>

@@ -1,240 +1,270 @@
-from fastapi import APIRouter
-from fastapi.responses import Response, JSONResponse
-from pathlib import Path
-import httpx
-import os
+"""Cover art, from whichever source answers first.
+
+For downloaded albums: artwork embedded in the audio tags, then an image file
+sitting in the folder, then Deezer. For search results there is nothing on disk
+yet, so Deezer is the only option.
+
+Every response carries an ETag and a long max-age. Covers are the bulk of the
+bytes this app serves, and without cache headers a phone re-downloads all of
+them on every render.
+"""
+
+from __future__ import annotations
+
+import base64
 import re
-import time
+from pathlib import Path
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
+
+import paths
+import slskd
+from cache import covers as cover_cache
+from cache import metadata
 
 router = APIRouter()
 
-# Cache en memoria para no repetir requests
-cover_cache = {}
+_YEAR_RE = re.compile(r"[\(\[]\s*(?:19|20)\d{2}\s*[\)\]]")
+_BRACKETS_RE = re.compile(r"\[.*?\]")
+_QUALITY_RE = re.compile(
+    r"\b(FLAC|MP3|AAC|OGG|OPUS|WAV|24bit|16bit|320|256|192|kbps|CBR|VBR|"
+    r"Lossless|Hi[\-\s]?Res|WEB|CDRip|CD|Vinyl|Remaster(?:ed)?|Deluxe)\b",
+    re.IGNORECASE,
+)
 
-AUDIO_EXTS = {".flac", ".mp3", ".m4a", ".ogg", ".opus", ".wav", ".aiff", ".ape", ".wv"}
+_IMAGE_MIMES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+_CACHE_HEADERS = {"Cache-Control": "public, max-age=604800"}
+# Retry a miss sooner -- the album may finish downloading a moment later.
+_MISS_HEADERS = {"Cache-Control": "public, max-age=600"}
+
+
+def _image_response(request: Request, key: str, data: bytes, mime: str) -> Response:
+    etag = cover_cache.etag(key)
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={**_CACHE_HEADERS, "ETag": etag})
+    return Response(
+        content=data, media_type=mime, headers={**_CACHE_HEADERS, "ETag": etag}
+    )
+
+
+def _not_found() -> Response:
+    return Response(status_code=404, headers=_MISS_HEADERS)
 
 
 def clean_for_search(artist: str, album: str) -> tuple[str, str]:
-    """Limpia nombres antes de buscar: elimina año, formato, tags de calidad."""
+    """Strip year, format and quality tags before querying a metadata API."""
 
-    def strip_name(name: str) -> str:
-        # Eliminar años entre paréntesis o corchetes: (2025), [2021]
-        name = re.sub(r'[\(\[]\s*(?:19|20)\d{2}\s*[\)\]]', '', name)
-        # Eliminar tags de formato entre corchetes: [FLAC], [320kbps]
-        name = re.sub(r'\[.*?\]', '', name)
-        # Eliminar marcadores de calidad sueltos
-        name = re.sub(
-            r'\b(FLAC|MP3|AAC|OGG|OPUS|WAV|24bit|16bit|320|256|192|kbps|CBR|VBR|Lossless|Hi[\-\s]Res|WEB|CDRip|Vinyl)\b',
-            '', name, flags=re.IGNORECASE
-        )
-        return re.sub(r'\s+', ' ', name).strip(' -_.')
+    def strip(name: str) -> str:
+        name = _YEAR_RE.sub("", name)
+        name = _BRACKETS_RE.sub("", name)
+        name = _QUALITY_RE.sub("", name)
+        return re.sub(r"\s+", " ", name).strip(" -_.")
 
-    # Si el álbum tiene formato "Artista - Álbum" y no hay artista, separarlo
     if " - " in album and not artist.strip():
-        parts = album.split(" - ", 1)
-        artist = parts[0].strip()
-        album = parts[1].strip()
-
-    return strip_name(artist), strip_name(album)
+        head, _, tail = album.partition(" - ")
+        artist, album = head.strip(), tail.strip()
+    return strip(artist), strip(album)
 
 
-async def fetch_cover(artist: str, album: str) -> bytes | None:
-    """Busca portada usando Deezer API (gratuita, sin key, rápida y precisa)."""
-    cache_key = f"{artist}::{album}".lower()
-    if cache_key in cover_cache:
-        return cover_cache[cache_key]
+async def fetch_remote_cover(artist: str, album: str) -> bytes | None:
+    """Look the album up on Deezer and download its highest-resolution cover."""
+    key = f"search::{artist}::{album}".lower()
+    cached = cover_cache.get(key)
+    if cached is not None:
+        return cached[0]
+    if cover_cache.is_missing(key):
+        return None
 
     clean_artist, clean_album = clean_for_search(artist, album)
+    queries = [q for q in (f"{clean_artist} {clean_album}".strip(), clean_album, clean_artist) if q]
 
-    # Intentar con varias queries en orden de especificidad
-    queries = []
-    if clean_artist and clean_album:
-        queries.append(f"{clean_artist} {clean_album}")
-    if clean_album:
-        queries.append(clean_album)
-    if clean_artist:
-        queries.append(clean_artist)
+    client = slskd.external_client()
+    for query in dict.fromkeys(queries):
+        try:
+            response = await client.get(
+                "https://api.deezer.com/search/album", params={"q": query, "limit": 10}
+            )
+            results = response.json().get("data", [])
+        except Exception:
+            continue
+        if not results:
+            continue
 
-    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-        for query in queries:
-            try:
-                resp = await client.get(
-                    "https://api.deezer.com/search/album",
-                    params={"q": query, "limit": 10},
-                )
-                results = resp.json().get("data", [])
-                if not results:
-                    continue
+        wanted = clean_album.lower()
+        best = next(
+            (r for r in results if wanted and wanted in r.get("title", "").lower()),
+            results[0],
+        )
+        # cover_big is 500x500 -- ample for a grid card even at 2x DPR, and
+        # roughly a quarter the bytes of cover_xl (1000x1000), which matters
+        # when a search paints 20 of them over mobile data.
+        url = best.get("cover_big") or best.get("cover_xl") or best.get("cover_medium")
+        if not url:
+            continue
+        try:
+            image = await client.get(url)
+        except Exception:
+            continue
+        if image.status_code == 200 and image.content:
+            cover_cache.set(key, image.content, "image/jpeg")
+            return image.content
 
-                # Preferir el resultado cuyo título coincida con el álbum buscado
-                clean_album_lower = clean_album.lower()
-                best = None
-                for r in results:
-                    title = r.get("title", "").lower()
-                    if clean_album_lower and clean_album_lower in title:
-                        best = r
-                        break
-                if not best:
-                    best = results[0]
-
-                # Deezer devuelve URLs directas a la imagen — usar cover_xl (1000x1000)
-                cover_url = best.get("cover_xl") or best.get("cover_big") or best.get("cover_medium")
-                if not cover_url:
-                    continue
-
-                img_resp = await client.get(cover_url)
-                if img_resp.status_code == 200:
-                    cover_cache[cache_key] = img_resp.content
-                    return img_resp.content
-            except Exception:
-                continue
-
-    cover_cache[cache_key] = None
+    cover_cache.mark_missing(key)
     return None
 
 
-def get_embedded_cover(filepath: str):
-    ext = filepath.split(".")[-1].lower()
+def get_embedded_cover(filepath: Path) -> tuple[bytes | None, str | None]:
+    """Pull artwork out of an audio file's tags. Runs in a worker thread."""
+    ext = filepath.suffix.lower()
     try:
-        if ext == "flac":
+        if ext == ".flac":
             from mutagen.flac import FLAC
-            audio = FLAC(filepath)
-            if audio.pictures:
-                pic = audio.pictures[0]
-                return pic.data, pic.mime
-        elif ext in ("mp3",):
+
+            pictures = FLAC(filepath).pictures
+            if pictures:
+                return pictures[0].data, pictures[0].mime
+        elif ext == ".mp3":
             from mutagen.id3 import ID3
-            tags = ID3(filepath)
-            for tag in tags.values():
-                if hasattr(tag, 'FrameID') and tag.FrameID == "APIC":
+
+            for tag in ID3(filepath).values():
+                if getattr(tag, "FrameID", None) == "APIC":
                     return tag.data, tag.mime
-        elif ext in ("m4a", "aac", "mp4"):
+        elif ext in (".m4a", ".aac", ".mp4"):
             from mutagen.mp4 import MP4
-            audio = MP4(filepath)
-            covr = audio.tags.get("covr") if audio.tags else None
-            if covr:
-                img = covr[0]
-                mime = "image/jpeg" if getattr(img, 'imageformat', 13) == 13 else "image/png"
-                return bytes(img), mime
-        elif ext in ("ogg", "opus"):
-            from mutagen.oggvorbis import OggVorbis
+
+            tags = MP4(filepath).tags
+            artwork = tags.get("covr") if tags else None
+            if artwork:
+                image = artwork[0]
+                mime = "image/png" if getattr(image, "imageformat", 13) == 14 else "image/jpeg"
+                return bytes(image), mime
+        elif ext in (".ogg", ".opus"):
+            from mutagen.flac import Picture
             from mutagen.oggopus import OggOpus
-            klass = OggOpus if ext == "opus" else OggVorbis
-            audio = klass(filepath)
-            metadata_block = audio.get("metadata_block_picture", [])
-            if metadata_block:
-                import base64
-                from mutagen.flac import Picture
-                pic = Picture(base64.b64decode(metadata_block[0]))
-                return pic.data, pic.mime
+            from mutagen.oggvorbis import OggVorbis
+
+            audio = (OggOpus if ext == ".opus" else OggVorbis)(filepath)
+            block = audio.get("metadata_block_picture", [])
+            if block:
+                picture = Picture(base64.b64decode(block[0]))
+                return picture.data, picture.mime
     except Exception:
         pass
     return None, None
 
 
-def _find_cover_in_folder(folder: Path):
-    """Try embedded art from first audio file, then look for cover image files."""
-    # Try embedded first
-    for f in sorted(folder.iterdir()):
-        if f.is_file() and f.suffix.lower() in AUDIO_EXTS:
-            data, mime = get_embedded_cover(str(f))
-            if data:
-                return data, mime or "image/jpeg"
-    # Fallback: image files in the folder
-    for name in ["cover.jpg", "cover.png", "folder.jpg", "folder.png",
-                  "front.jpg", "front.png", "Cover.jpg", "Cover.png"]:
-        p = folder / name
-        if p.exists():
-            mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
-            return p.read_bytes(), mime
+def find_local_cover(folder: Path) -> tuple[bytes | None, str | None]:
+    """Embedded artwork from the first audio file, else an image in the folder."""
+    for audio in paths.audio_files(folder)[:3]:
+        data, mime = get_embedded_cover(audio)
+        if data:
+            return data, mime or "image/jpeg"
+
+    image = paths.find_cover_file(folder)
+    if image is not None:
+        try:
+            return image.read_bytes(), _IMAGE_MIMES.get(image.suffix.lower(), "image/jpeg")
+        except OSError:
+            pass
     return None, None
 
 
 @router.get("/search")
-async def cover_from_search(artist: str, album: str):
-    """Para resultados de búsqueda — usa Deezer API"""
-    data = await fetch_cover(artist, album)
+async def cover_from_search(request: Request, artist: str = "", album: str = ""):
+    """Cover for a search result -- nothing is on disk yet, so ask Deezer."""
+    key = f"search::{artist}::{album}".lower()
+    cached = cover_cache.get(key)
+    if cached is not None:
+        return _image_response(request, key, cached[0], cached[1])
+
+    data = await fetch_remote_cover(artist, album)
     if data:
-        return Response(content=data, media_type="image/jpeg")
-    return Response(status_code=404)
+        return _image_response(request, key, data, "image/jpeg")
+    return _not_found()
 
 
 @router.get("/folder")
-async def cover_from_folder(folder_name: str):
-    """Para la pestaña de descargas: embedded art > cover.jpg > Deezer."""
-    from config import MUSIC_PATH
+async def cover_from_folder(request: Request, folder_name: str):
+    """Cover for a downloaded album: embedded art, then an image file, then Deezer."""
+    key = f"folder::{folder_name.lower()}"
+    cached = cover_cache.get(key)
+    if cached is not None:
+        return _image_response(request, key, cached[0], cached[1])
 
-    cache_key = f"folder::{folder_name.lower()}"
-    if cache_key in cover_cache and cover_cache[cache_key]:
-        d, m = cover_cache[cache_key]
-        return Response(content=d, media_type=m)
-
-    # 1. Try to read from disk
-    folder = Path(MUSIC_PATH) / folder_name
-    if folder.is_dir():
-        data, mime = _find_cover_in_folder(folder)
+    folder = paths.find_album_folder(folder_name)
+    if folder is not None:
+        data, mime = await run_in_threadpool(find_local_cover, folder)
         if data:
-            cover_cache[cache_key] = (data, mime)
-            return Response(content=data, media_type=mime)
+            cover_cache.set(key, data, mime or "image/jpeg")
+            return _image_response(request, key, data, mime or "image/jpeg")
 
-    # 2. Fallback: Deezer with cleaned folder name
-    sep = folder_name.find(" - ")
-    artist = folder_name[:sep] if sep > -1 else ""
-    album  = folder_name[sep + 3:] if sep > -1 else folder_name
-    data = await fetch_cover(artist, album)
+    if cover_cache.is_missing(key):
+        return _not_found()
+
+    leaf = folder_name.replace("\\", "/").rstrip("/").split("/")[-1]
+    artist, _, album = leaf.partition(" - ")
+    data = await fetch_remote_cover(artist if album else "", album or leaf)
     if data:
-        cover_cache[cache_key] = (data, "image/jpeg")
-        return Response(content=data, media_type="image/jpeg")
+        cover_cache.set(key, data, "image/jpeg")
+        return _image_response(request, key, data, "image/jpeg")
 
-    cover_cache[cache_key] = None
-    return Response(status_code=404)
+    cover_cache.mark_missing(key)
+    return _not_found()
+
+
+@router.get("/local")
+async def cover_from_file(request: Request, path: str):
+    """Cover for one downloaded file. `path` is relative to the music folder."""
+    target = paths.resolve_within(path)
+    if target is None or not target.is_file():
+        return _not_found()
+
+    key = f"local::{path.lower()}"
+    cached = cover_cache.get(key)
+    if cached is not None:
+        return _image_response(request, key, cached[0], cached[1])
+
+    data, mime = await run_in_threadpool(get_embedded_cover, target)
+    if not data:
+        data, mime = await run_in_threadpool(find_local_cover, target.parent)
+    if data:
+        cover_cache.set(key, data, mime or "image/jpeg")
+        return _image_response(request, key, data, mime or "image/jpeg")
+    return _not_found()
 
 
 @router.get("/trending")
 async def get_trending():
-    """Devuelve los álbumes en tendencia según el chart de iTunes US (Apple RSS)."""
-    cache_key = "__trending__"
-    cached = cover_cache.get(cache_key)
-    if cached and time.time() - cached["ts"] < 3600:
-        return JSONResponse(cached["data"])
+    """Popular albums right now, from the iTunes US top-albums chart."""
+    cached = metadata.get("trending")
+    if cached is not None:
+        return JSONResponse(cached, headers={"Cache-Control": "public, max-age=1800"})
 
     try:
-        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
-            resp = await client.get(
-                "https://itunes.apple.com/us/rss/topalbums/limit=24/json"
-            )
-            entries = resp.json().get("feed", {}).get("entry", [])
+        response = await slskd.external_client().get(
+            "https://itunes.apple.com/us/rss/topalbums/limit=24/json"
+        )
+        entries = response.json().get("feed", {}).get("entry", [])
     except Exception:
-        return JSONResponse([])
+        return JSONResponse([], headers=_MISS_HEADERS)
 
     albums = []
-    for item in entries:
+    for entry in entries:
         try:
-            artist = item["im:artist"]["label"]
-            title  = item["im:name"]["label"]
-            # imagen viene en 170x170, escalar a 600x600
-            raw_img = item["im:image"][-1]["label"]
-            cover = re.sub(r'\d+x\d+bb', '600x600bb', raw_img)
-            if title and cover:
-                albums.append({"title": title, "artist": artist, "cover_url": cover})
+            raw_image = entry["im:image"][-1]["label"]
+            albums.append(
+                {
+                    "title": entry["im:name"]["label"],
+                    "artist": entry["im:artist"]["label"],
+                    # The feed serves 170px thumbnails; ask for something sharper.
+                    "cover_url": re.sub(r"\d+x\d+bb", "600x600bb", raw_image),
+                }
+            )
         except (KeyError, IndexError):
             continue
 
-    cover_cache[cache_key] = {"ts": time.time(), "data": albums}
-    return JSONResponse(albums)
-
-
-@router.get("/local")
-async def cover_from_file(path: str):
-    """Para librería local — usa arte embebido o cover.jpg"""
-    if not os.path.exists(path):
-        return Response(status_code=404)
-    data, mime = get_embedded_cover(path)
-    if data:
-        return Response(content=data, media_type=mime or "image/jpeg")
-    folder = Path(path).parent
-    for name in ["cover.jpg", "cover.png", "folder.jpg", "front.jpg", "Cover.jpg"]:
-        cover_path = folder / name
-        if cover_path.exists():
-            return Response(content=cover_path.read_bytes(), media_type="image/jpeg")
-    return Response(status_code=404)
+    metadata.set("trending", albums, ttl=3600)
+    return JSONResponse(albums, headers={"Cache-Control": "public, max-age=1800"})

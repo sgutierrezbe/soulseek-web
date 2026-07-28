@@ -1,219 +1,283 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-import httpx
+"""Search the Soulseek network through slskd and group results into albums.
+
+Results arrive as a flat list of files per peer. We fold them into one entry per
+remote folder, drop obvious duplicates, and rank by a mix of real-world album
+popularity (Deezer), audio quality, and how likely the peer is to actually serve
+the transfer.
+
+The Deezer lookup is cached: the UI polls this endpoint roughly every 1.5s while
+a search runs, and the previous version issued a fresh Deezer request on every
+one of those polls.
+"""
+
+from __future__ import annotations
+
 import re
-from config import SLSKD_URL, SLSKD_API_KEY
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
+
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+
+import slskd
+from cache import metadata
+
+router = APIRouter()
+
+AUDIO_EXTS = {"mp3", "flac", "ogg", "aac", "opus", "m4a", "wav", "aiff", "ape", "wv"}
+LOSSLESS_EXTS = {"FLAC", "WAV", "AIFF", "APE", "WV"}
+
+# Folder names too generic to be a useful artist guess.
+JUNK_NAMES = {
+    "albumes", "albums", "música", "musica", "downloads", "descargas", "music",
+    "mp3", "flac", "various", "various artists", "va", "mixed", "shared", "media",
+    "complete", "discography", "discografia", "discografía", "soulseek", "temp",
+}
+
+_YEAR_RE = re.compile(r"[\(\[]\s*((?:19|20)\d{2})\s*[\)\]]")
+_BRACKETS_RE = re.compile(r"\[.*?\]")
+_QUALITY_RE = re.compile(
+    r"\b(FLAC|MP3|AAC|OGG|OPUS|WAV|WEB|CDRip|CD|Vinyl|Lossless|Remaster(?:ed)?|"
+    r"Deluxe|Reissue|24bit|16bit|320|256|192|kbps|CBR|VBR|Hi[\-\s]?Res)\b",
+    re.IGNORECASE,
+)
+_LEADING_TAGS_RE = re.compile(r"^(\s*[\[\(][^\]\)]*[\]\)]\s*)+")
+
+
+def extract_year(name: str) -> int | None:
+    match = _YEAR_RE.search(name)
+    return int(match.group(1)) if match else None
 
 
 def normalize_folder(name: str) -> str:
-    """Normaliza el nombre de carpeta para contar popularidad correctamente.
-    Elimina años, tags de formato y calidad para agrupar variantes del mismo álbum."""
-    name = re.sub(r'[\(\[]\s*(?:19|20)\d{2}\s*[\)\]]', '', name)   # (2025), [2021]
-    name = re.sub(r'\[.*?\]', '', name)                              # [FLAC], [320kbps]
-    name = re.sub(
-        r'\b(FLAC|MP3|AAC|OGG|OPUS|WAV|WEB|CDRip|Vinyl|Lossless|'
-        r'24bit|16bit|320|256|192|kbps|CBR|VBR|Hi[\-\s]?Res)\b',
-        '', name, flags=re.IGNORECASE
-    )
-    # Quitar prefijo "Artista - " si el álbum lo tiene
-    if ' - ' in name:
-        name = name.split(' - ', 1)[-1]
-    return re.sub(r'\s+', ' ', name).strip(' -_.').lower()
+    """Reduce a folder name to a comparable album key.
+
+    Strips years, format/quality tags and any leading "Artist - " so that
+    variants of the same album collapse onto one entry.
+    """
+    name = _YEAR_RE.sub("", name)
+    name = _BRACKETS_RE.sub("", name)
+    name = _QUALITY_RE.sub("", name)
+    if " - " in name:
+        name = name.split(" - ", 1)[-1]
+    return re.sub(r"\s+", " ", name).strip(" -_.").lower()
 
 
-JUNK_NAMES = {"albumes", "albums", "música", "musica", "downloads", "descargas",
-              "music", "mp3", "flac", "various", "various artists", "va", "mixed"}
-
-async def get_deezer_album_ranks(query: str) -> dict[str, int]:
-    """Consulta Deezer y devuelve {nombre_normalizado: posición} (0 = más popular)."""
+async def deezer_album_ranks(query: str) -> dict[str, int]:
+    """Map normalized album title -> chart position (0 = most popular)."""
     if not query:
         return {}
+    key = f"deezer-ranks::{query.lower()}"
+    cached = metadata.get(key)
+    if cached is not None:
+        return cached
+
     try:
-        async with httpx.AsyncClient(timeout=5, follow_redirects=True) as deezer:
-            resp = await deezer.get(
-                "https://api.deezer.com/search/album",
-                params={"q": query, "limit": 50}
-            )
-            data = resp.json().get("data", [])
-            return {normalize_folder(a.get("title", "")): i for i, a in enumerate(data)}
+        response = await slskd.external_client().get(
+            "https://api.deezer.com/search/album", params={"q": query, "limit": 50}
+        )
+        entries = response.json().get("data", [])
+        ranks = {
+            normalize_folder(entry.get("title", "")): index
+            for index, entry in enumerate(entries)
+        }
+        metadata.set(key, ranks)
     except Exception:
-        return {}
+        # Don't cache a failure for the full TTL -- the next search should retry.
+        ranks = {}
+        metadata.set(key, ranks, ttl=60)
+    return ranks
 
-
-router = APIRouter()
-HEADERS = {"X-API-Key": SLSKD_API_KEY}
 
 class SearchRequest(BaseModel):
     query: str
 
-@router.post("/")
-async def search(body: SearchRequest):
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"{SLSKD_URL}/api/v0/searches",
-                headers=HEADERS,
-                json={"searchText": body.query, "fileLimit": 500}
+
+def _folder_of(filename: str) -> str:
+    normalized = filename.replace("\\", "/")
+    return normalized.rsplit("/", 1)[0] if "/" in normalized else normalized
+
+
+def _leaf(path: str) -> str:
+    return path.replace("\\", "/").rstrip("/").split("/")[-1]
+
+
+def _build_albums(responses: list[dict], advanced: bool) -> list[dict]:
+    """Fold slskd's per-peer file lists into one entry per remote folder."""
+    albums: list[dict] = []
+
+    for response in responses:
+        username = response.get("username", "")
+        upload_speed = response.get("uploadSpeed", 0) or 0
+        queue_length = response.get("queueLength", 0) or 0
+        free_slots = bool(response.get("hasFreeUploadSlot", False))
+
+        folders: dict[str, list[dict]] = defaultdict(list)
+        for file in response.get("files", []):
+            folders[_folder_of(file.get("filename", ""))].append(file)
+
+        for folder_path, files in folders.items():
+            audio = [
+                f
+                for f in files
+                if f.get("filename", "").rsplit(".", 1)[-1].lower() in AUDIO_EXTS
+            ]
+
+            if advanced:
+                # Advanced mode shows everything, including single files and
+                # folders slskd reported without a recognised audio extension.
+                if not files:
+                    continue
+                display_files = files
+                counted = audio or files
+            else:
+                if len(audio) < 2:
+                    continue
+                display_files = counted = audio
+
+            extensions = Counter(
+                f.get("filename", "").rsplit(".", 1)[-1].upper() for f in counted
             )
-            if resp.status_code != 200 or not resp.content:
-                raise HTTPException(500, "Error iniciando búsqueda")
-            return {"search_id": resp.json()["id"]}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"No se pudo conectar a slskd: {e}")
+            dominant_ext = extensions.most_common(1)[0][0] if extensions else "?"
 
-@router.get("/{search_id}")
-async def get_results(search_id: str, raw: bool = False):
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                f"{SLSKD_URL}/api/v0/searches/{search_id}/responses",
-                headers=HEADERS
-            )
-            if resp.status_code != 200 or not resp.content:
-                return {"state": "Searching", "albums": [], "total": 0}
+            bitrate = next((f.get("bitRate") for f in counted if f.get("bitRate")), None)
+            sample_rate = next((f.get("sampleRate") for f in counted if f.get("sampleRate")), None)
+            bit_depth = next((f.get("bitDepth") for f in counted if f.get("bitDepth")), None)
+            duration = sum(f.get("length") or 0 for f in counted)
 
-            responses = resp.json()
+            folder_name = _leaf(folder_path)
+            if not advanced:
+                folder_name = _LEADING_TAGS_RE.sub("", folder_name).strip()
 
-            state_resp = await client.get(
-                f"{SLSKD_URL}/api/v0/searches/{search_id}",
-                headers=HEADERS
-            )
-            state = state_resp.json().get("state", "") if state_resp.content else ""
+            segments = folder_path.replace("\\", "/").split("/")
+            artist_guess = segments[-2] if len(segments) >= 2 else ""
 
-        albums = []
-
-        for response in responses:
-            username = response["username"]
-            upload_speed = response.get("uploadSpeed", 0)
-            queue_length = response.get("queueLength", 0)
-            free_slots = response.get("hasFreeUploadSlot", False)
-
-            folders = defaultdict(list)
-            for file in response.get("files", []):
-                fname = file["filename"]
-                if "\\" in fname:
-                    folder = fname.rsplit("\\", 1)[0]
-                else:
-                    folder = fname.rsplit("/", 1)[0]
-                folders[folder].append(file)
-
-            for folder_path, files in folders.items():
-                audio_files = [f for f in files if f["filename"].split(".")[-1].lower()
-                               in {"mp3", "flac", "ogg", "aac", "opus", "m4a", "wav"}]
-
-                if raw:
-                    # Raw mode: include every folder, use all files for display
-                    display_files = files if files else []
-                    if not display_files:
-                        continue
-                    # Use audio_files if any, otherwise all files
-                    count_files = audio_files if audio_files else files
-                else:
-                    if not audio_files:
-                        continue
-                    if len(audio_files) < 2:
-                        continue
-                    display_files = audio_files
-                    count_files = audio_files
-
-                exts = [f["filename"].split(".")[-1].upper() for f in count_files]
-                ext_counts = defaultdict(int)
-                for e in exts:
-                    ext_counts[e] += 1
-                dominant_ext = max(ext_counts, key=ext_counts.get) if ext_counts else "?"
-
-                bitrate = next((f.get("bitRate") for f in count_files if f.get("bitRate")), None)
-                sample_rate = next((f.get("sampleRate") for f in count_files if f.get("sampleRate")), None)
-                bit_depth = next((f.get("bitDepth") for f in count_files if f.get("bitDepth")), None)
-
-                total_size = sum(f.get("size", 0) for f in display_files)
-
-                folder_name = folder_path.split("\\")[-1] if "\\" in folder_path else folder_path.split("/")[-1]
-                if not raw:
-                    folder_name = re.sub(r'^(\s*\[[^\]]*\]\s*)+', '', folder_name).strip()
-
-                parts = folder_path.replace("\\", "/").split("/")
-                artist_guess = parts[-2] if len(parts) >= 2 else ""
-
-                albums.append({
+            albums.append(
+                {
+                    "id": f"{username}::{folder_path}",
                     "username": username,
                     "upload_speed": upload_speed,
                     "queue_length": queue_length,
                     "free_slots": free_slots,
                     "folder_path": folder_path,
-                    "folder_name": folder_name,
+                    "folder_name": folder_name or _leaf(folder_path),
                     "artist_guess": artist_guess,
-                    "track_count": len(count_files),
-                    "total_size": total_size,
+                    "year": extract_year(_leaf(folder_path)),
+                    "track_count": len(counted),
+                    "total_size": sum(f.get("size", 0) or 0 for f in display_files),
+                    "duration": duration,
                     "extension": dominant_ext,
+                    "lossless": dominant_ext in LOSSLESS_EXTS,
                     "bitrate": bitrate,
                     "sample_rate": sample_rate,
                     "bit_depth": bit_depth,
-                    "files": [{"filename": f["filename"], "size": f.get("size", 0)} for f in display_files],
-                })
+                    "files": [
+                        {"filename": f.get("filename", ""), "size": f.get("size", 0) or 0}
+                        for f in display_files
+                    ],
+                }
+            )
 
-        # ── Raw mode: no dedup, no Deezer, just sort by speed ────────────────
-        if raw:
-            albums.sort(key=lambda x: (-x["upload_speed"], not x["free_slots"]))
-            return {"state": state, "albums": albums, "total": len(albums)}
+    return albums
 
-        # ── Smart mode: dedup + Deezer ranking ───────────────────────────────
-        popularity = Counter(normalize_folder(a["folder_name"]) + "::" + a["extension"] for a in albums)
 
-        artist_counts = Counter(
-            a["artist_guess"] for a in albums
-            if a["artist_guess"] and a["artist_guess"].lower() not in JUNK_NAMES
+def _deduplicate(albums: list[dict]) -> list[dict]:
+    """Keep the best copy of each album, merging in better metadata as we go."""
+    best: dict[str, dict] = {}
+    for album in albums:
+        key = f"{normalize_folder(album['folder_name'])}::{album['extension']}"
+        current = best.get(key)
+        if current is None:
+            best[key] = album
+            continue
+
+        # Prefer the copy most likely to transfer well and sound best.
+        better = (album["bitrate"] or 0) > (current["bitrate"] or 0) or (
+            album["free_slots"] and not current["free_slots"]
         )
-        top_artist = artist_counts.most_common(1)[0][0] if artist_counts else ""
-        deezer_ranks = await get_deezer_album_ranks(top_artist)
+        if better:
+            album["artist_guess"] = album["artist_guess"] or current["artist_guess"]
+            best[key] = album
+            current = album
+        elif " - " not in album["folder_name"] and " - " in current["folder_name"]:
+            # A bare album title reads better than "Artist - Album".
+            current["folder_name"] = album["folder_name"]
 
-        seen = {}
-        for album in albums:
-            key = normalize_folder(album["folder_name"]) + "::" + album["extension"]
-            if key not in seen:
-                seen[key] = album
-            else:
-                current = seen[key]
-                better_quality = (
-                    (album["bitrate"] or 0) > (current["bitrate"] or 0) or
-                    (album["free_slots"] and not current["free_slots"])
-                )
-                if better_quality:
-                    seen[key] = album
-                else:
-                    if " - " not in album["folder_name"] and " - " in current["folder_name"]:
-                        seen[key]["folder_name"] = album["folder_name"]
-                if not current["artist_guess"] or current["artist_guess"].lower() in JUNK_NAMES:
-                    if album["artist_guess"] and album["artist_guess"].lower() not in JUNK_NAMES:
-                        seen[key]["artist_guess"] = album["artist_guess"]
+        if not current["artist_guess"] or current["artist_guess"].lower() in JUNK_NAMES:
+            candidate = album["artist_guess"]
+            if candidate and candidate.lower() not in JUNK_NAMES:
+                current["artist_guess"] = candidate
+        if current["year"] is None and album["year"] is not None:
+            current["year"] = album["year"]
+    return list(best.values())
 
-        albums = list(seen.values())
 
-        albums.sort(key=lambda x: (
-            x["extension"] != "FLAC",
-            deezer_ranks.get(normalize_folder(x["folder_name"]), 999),
-            -popularity[normalize_folder(x["folder_name"]) + "::" + x["extension"]],
-            -(x["bitrate"] or 0),
-            not x["free_slots"],
-            -x["upload_speed"]
-        ))
+@router.post("/")
+async def start_search(body: SearchRequest):
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(400, "Search query is empty.")
+    try:
+        response = await slskd.request(
+            "POST", "searches", json={"searchText": query, "fileLimit": 500}
+        )
+    except slskd.SlskdError as exc:
+        raise HTTPException(502, exc.message) from exc
 
-        return {
-            "state": state,
-            "albums": albums,
-            "total": len(albums)
-        }
-    except Exception:
-        return {"state": "Searching", "albums": [], "total": 0}
+    if response.status_code not in (200, 201) or not response.content:
+        raise HTTPException(502, "slskd would not start the search.")
+    return {"search_id": response.json()["id"]}
+
+
+@router.get("/{search_id}")
+async def get_results(
+    search_id: str,
+    advanced: bool = Query(False, alias="raw"),
+):
+    try:
+        responses = await slskd.get_json(
+            f"searches/{search_id}/responses", default=[], timeout=30
+        )
+        state_payload = await slskd.get_json(f"searches/{search_id}", default={}, timeout=10)
+    except slskd.SlskdError as exc:
+        # The UI polls this; report the failure instead of pretending to search.
+        return {"state": "Errored", "albums": [], "total": 0, "error": exc.message}
+
+    state = (state_payload or {}).get("state", "") if isinstance(state_payload, dict) else ""
+    albums = _build_albums(responses or [], advanced)
+
+    if advanced:
+        albums.sort(key=lambda a: (-a["upload_speed"], not a["free_slots"]))
+        return {"state": state, "albums": albums, "total": len(albums)}
+
+    popularity = Counter(
+        f"{normalize_folder(a['folder_name'])}::{a['extension']}" for a in albums
+    )
+    artist_counts = Counter(
+        a["artist_guess"]
+        for a in albums
+        if a["artist_guess"] and a["artist_guess"].lower() not in JUNK_NAMES
+    )
+    top_artist = artist_counts.most_common(1)[0][0] if artist_counts else ""
+    ranks = await deezer_album_ranks(top_artist)
+
+    albums = _deduplicate(albums)
+    albums.sort(
+        key=lambda a: (
+            not a["lossless"],
+            ranks.get(normalize_folder(a["folder_name"]), 999),
+            -popularity[f"{normalize_folder(a['folder_name'])}::{a['extension']}"],
+            -(a["bitrate"] or 0),
+            not a["free_slots"],
+            -a["upload_speed"],
+        )
+    )
+    return {"state": state, "albums": albums, "total": len(albums)}
+
 
 @router.delete("/{search_id}")
 async def stop_search(search_id: str):
-    async with httpx.AsyncClient() as client:
-        await client.delete(
-            f"{SLSKD_URL}/api/v0/searches/{search_id}",
-            headers=HEADERS
-        )
+    try:
+        await slskd.request("DELETE", f"searches/{search_id}", timeout=5)
+    except slskd.SlskdError:
+        pass  # The search stops on its own; nothing useful to report here.
     return {"ok": True}

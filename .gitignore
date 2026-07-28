@@ -9,9 +9,14 @@ venv/
 # Env
 .env
 
-# Configuración local (contiene API keys)
+# Local config (contains API keys)
 credentials.json
+credentials.json.tmp
 local_setup.json
+
+# Cover-art cache and any other runtime state
+.cache/
+downloads/
 
 # Generados por los instaladores (contienen rutas absolutas del usuario)
 launcher.vbs
