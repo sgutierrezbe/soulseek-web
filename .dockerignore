@@ -1,0 +1,30 @@
+# Keep the build context small and secrets out of the image.
+.git
+.gitignore
+.github
+docs
+*.md
+!README.md
+
+# Local state that must never be baked into an image
+credentials.json
+local_setup.json
+.cache
+.env
+.venv
+venv
+
+install.sh
+install.ps1
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.DS_Store
+Thumbs.db

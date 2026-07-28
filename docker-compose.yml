@@ -1,20 +1,62 @@
+# Full stack: slskd (the Soulseek daemon) plus the soulseek-web UI.
+#
+#   cp .env.example .env     # fill in your Soulseek account + an API key
+#   docker compose up -d
+#   open http://localhost:8080
+#
+# To run against an slskd you already have, delete the `slskd` service and point
+# SLSKD_URL at your existing instance.
+
+name: soulseek-web
+
 services:
-  soulseek-web:
-    build: .
-    image: soulseek-web
-    container_name: soulseek-web
-    ports:
-      - "8080:8080"
-    volumes:
-      # Persiste la configuración entre reinicios
-      - ./credentials.json:/app/credentials.json
-      # Montá tu carpeta de música (ajustá la ruta izquierda a tu sistema)
-      - /mnt/music:/mnt/music:ro
+  slskd:
+    image: slskd/slskd:0.26.0
+    container_name: slskd
     restart: unless-stopped
     environment:
-      # Opcional: si preferís configurar por variables de entorno en lugar de
-      # usar el wizard del UI, descomentá y completá estas líneas:
-      # - SLSKD_URL=http://192.168.1.x:5030
-      # - SLSKD_API_KEY=tu-api-key
-      # - MUSIC_PATH=/mnt/music/downloads
-      - TZ=America/Argentina/Buenos_Aires
+      SLSKD_SLSK_USERNAME: ${SOULSEEK_USERNAME:?set SOULSEEK_USERNAME in .env}
+      SLSKD_SLSK_PASSWORD: ${SOULSEEK_PASSWORD:?set SOULSEEK_PASSWORD in .env}
+      SLSKD_API_KEY: ${SLSKD_API_KEY:?set SLSKD_API_KEY in .env (16-255 chars)}
+      SLSKD_SLSK_LISTEN_PORT: ${SOULSEEK_LISTEN_PORT:-50300}
+      SLSKD_DOWNLOADS_DIR: /downloads
+      SLSKD_INCOMPLETE_DIR: /downloads/.incomplete
+    volumes:
+      - slskd-data:/app
+      - ${MUSIC_PATH:-./downloads}:/downloads
+    ports:
+      # Forward this one in your router so peers can reach you -- without it
+      # transfers only work with peers who can open the connection themselves.
+      - "${SOULSEEK_LISTEN_PORT:-50300}:${SOULSEEK_LISTEN_PORT:-50300}"
+      # slskd's own UI. Bound to localhost; soulseek-web reaches it over the
+      # internal network and does not need this published.
+      - "127.0.0.1:5030:5030"
+
+  soulseek-web:
+    image: ghcr.io/sgutierrezbe/soulseek-web:latest
+    # Comment out `image:` and uncomment `build:` to build from this checkout.
+    # build: .
+    container_name: soulseek-web
+    restart: unless-stopped
+    depends_on:
+      - slskd
+    environment:
+      SLSKD_URL: http://slskd:5030
+      SLSKD_API_KEY: ${SLSKD_API_KEY}
+      MUSIC_PATH: /downloads
+      # Optional: require a password to open the UI. Strongly recommended if
+      # you expose this outside your LAN.
+      AUTH_PASSWORD: ${APP_PASSWORD:-}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Settings + cover cache. A named volume avoids the classic bind-mount
+      # trap where Docker creates a *directory* named credentials.json.
+      - web-config:/config
+      # Read-write: deleting an album from the Downloads tab removes its files.
+      - ${MUSIC_PATH:-./downloads}:/downloads
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+
+volumes:
+  slskd-data:
+  web-config:

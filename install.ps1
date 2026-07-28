@@ -215,10 +215,12 @@ soulseek:
 web:
   port: $SLSKD_PORT
   authentication:
-    disabled: false
+    # api_keys is a mapping keyed by name -- a YAML list is silently ignored.
     api_keys:
-      - name: soulseek-web
+      soulseek-web:
         key: "$apiKey"
+        role: administrator
+        cidr: 0.0.0.0/0,::/0
 
 directories:
   downloads: "$musicFwd"
