@@ -10,16 +10,19 @@ Written to be executed step by step. Every step has a check; if a check fails, s
 
 ## 0. Before you start
 
-**Prerequisite:** version 2.0.0 must be on the `main` branch of
+**Prerequisite:** a 2.x release must be on the `main` branch of
 `https://github.com/sgutierrezbe/soulseek-web`. Verify before touching the container:
 
 ```bash
 git ls-remote https://github.com/sgutierrezbe/soulseek-web.git main
 curl -s https://raw.githubusercontent.com/sgutierrezbe/soulseek-web/main/VERSION
-# must print 2.0.0
+# must print 2.x.y (2.1.0 or newer at the time of writing)
 ```
 
 If that prints `1.1.0`, the release has not been published yet — **stop here**.
+
+This runbook covers any 1.x → 2.x upgrade; substitute the version it printed
+wherever `2.x` appears below.
 
 ### What this upgrade does *not* change
 
@@ -40,6 +43,7 @@ You do **not** need to touch any of these, and should not:
 | Change | Impact |
 |---|---|
 | New writable dir `/opt/soulseek-web/.cache` | Cover-art cache. Grows to ~256 MB max. Needs write access for the service user. |
+| New file `/opt/soulseek-web/upload_stats.json` | Sharing statistics (2.1.0+). Written by a background task every 30s; a few hundred KB at most. Same write-access requirement. |
 | Dependencies are now pinned, and `uvicorn[standard]` is used | The venv must be re-synced. See step 4 note if the build fails. |
 | Static assets moved out of `index.html` into `/static/` | Nothing to do; served by the same process. |
 | New `/health` endpoint | Useful for your monitoring. Returns app + slskd status. |
@@ -135,7 +139,7 @@ systemctl restart soulseek-web
 **Check:**
 
 ```bash
-cat /opt/soulseek-web/VERSION     # expect 2.0.0
+cat /opt/soulseek-web/VERSION     # expect the 2.x version from step 0
 ```
 
 ## 5. Permissions for the new cache directory
@@ -166,7 +170,7 @@ Work through all of these. They take about a minute.
 ```bash
 # 1. Service is healthy and can see slskd
 curl -s localhost:8080/health
-#    expect: {"status":"ok","version":"2.0.0",...,"slskd":"ok"}
+#    expect: {"status":"ok","version":"2.x.y",...,"slskd":"ok"}
 #    if "slskd":"unreachable", the connection settings did not carry over — see Troubleshooting
 
 # 2. Existing settings were preserved (should show your real slskd URL and music path)

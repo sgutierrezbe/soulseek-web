@@ -30,6 +30,11 @@
 </p>
 
 <p align="center">
+  <img src="docs/sharing.jpg" alt="Sharing statistics" width="760">
+  <br><em>Sharing — what others have taken from your library, over time</em>
+</p>
+
+<p align="center">
   <img src="docs/mobile.jpg" alt="Mobile" width="620">
   <br><em>Mobile — bottom navigation, installable to the home screen</em>
 </p>
@@ -56,6 +61,13 @@
 - ⏯️ Lock-screen and headphone controls on phones (Media Session)
 - 💾 Save any track from the server to the device you're browsing from
 - 📚 Library view of everything already downloaded, with embedded cover art
+
+**Sharing back**
+- 📊 **Sharing stats** — how many files have been uploaded from your library, how much data, and to how many people
+- 🏆 Which albums, files and users account for the most traffic, ranked
+- 📅 Uploads per day over the last 14 / 30 / 90 days
+- 📡 Live view of what people are pulling from you right now
+- 💾 Counted and stored by soulseek-web, so the history survives slskd clearing its own transfer list
 
 **Everywhere**
 - 📱 Installable PWA — add to home screen, runs full-screen, works offline for browsing
@@ -177,7 +189,7 @@ air-gapped LAN and there are no third-party requests on page load.
 
 ```bash
 pip install -r requirements.txt pytest
-pytest                                        # 53 tests, no slskd needed
+pytest                                        # 80 tests, no slskd needed
 uvicorn main:app --reload --port 8080
 ```
 
@@ -193,7 +205,8 @@ slskd.py         pooled async client for the slskd API
 auth.py          optional password + session middleware
 cache.py         TTL cache and the two-tier cover cache
 paths.py         music-folder resolution; every path is confined to MUSIC_PATH
-routers/         search, downloads, library, covers, stream, setup
+stats.py         durable upload tallies, sampled from slskd every 30s
+routers/         search, downloads, library, covers, stream, stats, setup
 static/          css, js, fonts, icons, service worker
 ```
 
