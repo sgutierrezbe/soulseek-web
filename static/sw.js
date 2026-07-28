@@ -9,10 +9,14 @@
  *                pass through the cache
  *   other /api   network-only; stale download progress would be worse than none
  *
- * Bump CACHE_VERSION when shipping a release so old shells are discarded.
+ * The cache name is derived from the app version, which the page passes in when
+ * registering (`/sw.js?v=2.0.0`). A new release therefore registers a different
+ * script URL, which installs a new worker whose activate step drops every cache
+ * belonging to the previous version. Hardcoding it here instead would leave old
+ * entries behind forever and serve stale CSS after an update.
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = new URL(self.location).searchParams.get('v') || 'dev';
 const SHELL_CACHE = `slskweb-shell-${CACHE_VERSION}`;
 const COVER_CACHE = `slskweb-covers-${CACHE_VERSION}`;
 const MAX_COVERS = 400;

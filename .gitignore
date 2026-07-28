@@ -17,6 +17,8 @@ local_setup.json
 # Cover-art cache and any other runtime state
 .cache/
 downloads/
+upload_stats.json
+upload_stats.json.tmp
 
 # Generados por los instaladores (contienen rutas absolutas del usuario)
 launcher.vbs

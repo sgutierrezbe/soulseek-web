@@ -120,12 +120,22 @@ function app() {
     expandedGroup: null,
 
     /* ── library ───────────────────────────────────────────────────────── */
+    libraryTab: 'albums',
     library: [],
     libraryLoading: false,
     libraryError: '',
     openAlbumEntry: null,
     albumTracks: [],
     tracksLoading: false,
+
+    /* ── sharing stats ─────────────────────────────────────────────────── */
+    shareStats: null,
+    shareInfo: null,
+    liveUploads: [],
+    statsLoading: false,
+    statsError: '',
+    statsDays: window.innerWidth < 640 ? 14 : 30,
+    selectedDay: null,
 
     /* ── player ────────────────────────────────────────────────────────── */
     audio: null,
@@ -257,6 +267,9 @@ function app() {
         setInterval(() => {
           if (document.hidden || !this.authed || !this.setupDone) return;
           if (this.view === 'downloads') this.loadDownloads({ quiet: true });
+          if (this.view === 'library' && this.libraryTab === 'sharing') {
+            this.refreshLiveUploads();
+          }
         }, 2500)
       );
       this.addTimer(
@@ -279,8 +292,11 @@ function app() {
 
     registerServiceWorker() {
       if (!('serviceWorker' in navigator)) return;
+      // The version in the URL both names the worker's caches and makes a
+      // release install a new worker that discards the previous version's.
+      const url = `/sw.js?v=${encodeURIComponent(boot.version || 'dev')}`;
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {
+        navigator.serviceWorker.register(url).catch(() => {
           /* Not fatal — the app works fine without offline caching. */
         });
       });
@@ -298,7 +314,7 @@ function app() {
     go(view) {
       this.view = view;
       if (view === 'downloads') this.loadDownloads();
-      if (view === 'library' && !this.library.length) this.loadLibrary();
+      if (view === 'library') this.showLibraryTab(this.libraryTab);
       if (view === 'settings') this.loadSettings();
     },
 
@@ -661,6 +677,82 @@ function app() {
       this.albumTracks = [];
     },
 
+    /* ── sharing stats ─────────────────────────────────────────────────── */
+
+    showLibraryTab(tab) {
+      this.libraryTab = tab;
+      if (tab === 'sharing' && !this.shareStats) this.loadStats();
+      if (tab === 'albums' && !this.library.length) this.loadLibrary();
+    },
+
+    async loadStats() {
+      this.statsLoading = true;
+      this.statsError = '';
+      try {
+        const [summary, shares, live] = await Promise.all([
+          api(`/api/stats/uploads?days=${this.statsDays}`),
+          api('/api/stats/shares').catch(() => null),
+          api('/api/stats/uploads/active').catch(() => []),
+        ]);
+        this.shareStats = summary;
+        this.shareInfo = shares;
+        this.liveUploads = live || [];
+        this.selectedDay = null;
+      } catch (error) {
+        this.statsError = error.message || this.t('connError');
+      } finally {
+        this.statsLoading = false;
+      }
+    },
+
+    async refreshLiveUploads() {
+      try {
+        this.liveUploads = await api('/api/stats/uploads/active');
+      } catch {
+        /* Transient; the next tick retries. */
+      }
+    },
+
+    async setStatsRange(days) {
+      this.statsDays = days;
+      await this.loadStats();
+    },
+
+    /* Busiest day in the window — the one point worth direct-labelling. */
+    get timelinePeak() {
+      const points = (this.shareStats && this.shareStats.timeline) || [];
+      return points.reduce((best, p) => (p.files > (best ? best.files : 0) ? p : best), null);
+    },
+
+    barHeight(point) {
+      const peak = this.timelinePeak;
+      if (!peak || !peak.files) return 0;
+      return Math.max((point.files / peak.files) * 100, point.files > 0 ? 6 : 0);
+    },
+
+    /* Reading a bar must not depend on hover, so this readout doubles as the
+       keyboard/touch path and the peak stays permanently labelled. */
+    selectDay(point) {
+      this.selectedDay = point;
+    },
+
+    get readoutDay() {
+      return this.selectedDay || this.timelinePeak;
+    },
+
+    async resetStats() {
+      const ok = await this.ask(this.t('resetStatsTitle'), this.t('resetStatsBody'), this.t('resetStats'));
+      if (!ok) return;
+      try {
+        await api('/api/stats/uploads', { method: 'DELETE' });
+        this.shareStats = null;
+        await this.loadStats();
+        this.toast(this.t('statsReset'));
+      } catch (error) {
+        this.toast(error.message || this.t('unknownError'), true);
+      }
+    },
+
     /* ── player ────────────────────────────────────────────────────────── */
 
     setupAudio() {
@@ -933,6 +1025,32 @@ function app() {
       const total = Math.floor(seconds);
       const minutes = Math.floor(total / 60);
       return `${minutes}:${String(total % 60).padStart(2, '0')}`;
+    },
+
+    formatCount(value) {
+      return (value || 0).toLocaleString(this.lang === 'es' ? 'es-AR' : 'en-US');
+    },
+
+    /* "2026-07-28" -> "Jul 28", without dragging in a date library. */
+    formatDay(iso) {
+      if (!iso) return '';
+      const date = new Date(`${iso}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return iso;
+      return date.toLocaleDateString(this.lang === 'es' ? 'es-AR' : 'en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    },
+
+    formatDateTime(iso) {
+      if (!iso) return '—';
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return '—';
+      return date.toLocaleDateString(this.lang === 'es' ? 'es-AR' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
     },
 
     formatEta(seconds) {

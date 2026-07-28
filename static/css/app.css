@@ -128,22 +128,34 @@ a { color: var(--accent); }
 
 .sidebar { display: none; }
 
+/* min-height:0 on these flex children is load-bearing: without it a flex item
+   defaults to min-height:auto and refuses to shrink below its content, so the
+   desktop `.content { overflow-y: auto }` below never gets a bounded height and
+   the page simply clips instead of scrolling. */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   /* Clear the bottom nav and, when audio is playing, the mini player. */
   padding-bottom: calc(var(--nav-h) + var(--safe-b));
 }
 .app.has-player .main { padding-bottom: calc(var(--nav-h) + var(--player-h) + var(--safe-b)); }
 
-.view { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
 
 .content {
   flex: 1;
   padding: 14px 14px 28px;
   min-width: 0;
+  min-height: 0;
 }
 
 /* Top bar ----------------------------------------------------------------- */
@@ -808,6 +820,196 @@ select.chip option { background: var(--surface2); color: var(--text); }
 .lib-track:last-child { border-bottom: none; }
 .lib-track.is-playing { background: var(--accent-soft); }
 .lib-track.is-playing .track-num { color: var(--accent); }
+
+/* ============================================================================
+   Sharing statistics
+
+   Every chart here is single-series magnitude (uploads per day; ranked
+   entities), so all marks share one hue -- colour never encodes rank, which
+   would double-encode the length the bar already shows. --viz is a calmer step
+   of the accent: full --accent across 30 bars reads as glare.
+   ========================================================================= */
+
+:root {
+  --viz: #a5d400;
+  --viz-track: rgba(255, 255, 255, 0.05);
+}
+
+/* Stat tiles ------------------------------------------------------------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.stat-tile {
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.stat-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* Body sans with proportional figures: tabular digits make a large standalone
+   number look loose, and a display face would read as decoration. */
+.stat-value {
+  font-family: var(--sans);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.1;
+  font-variant-numeric: proportional-nums;
+  color: var(--text);
+}
+.stat-value .stat-unit { font-size: 14px; color: var(--text-dim); margin-left: 2px; }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+/* Time series ------------------------------------------------------------ */
+
+.chart-card {
+  padding: 16px 14px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 22px;
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+/* Readout instead of a floating tooltip: it works identically for touch, and
+   never collides with the plot edge. */
+.chart-readout {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  min-height: 15px;
+  margin-bottom: 10px;
+}
+.chart-readout .is-empty { color: var(--muted); }
+
+.chart-plot {
+  display: flex;
+  align-items: flex-end;
+  /* 2px surface gaps between adjacent bars, never borders. */
+  gap: 2px;
+  height: 110px;
+}
+
+/* The column is the hit target, not the bar: full plot height, so a zero day is
+   still comfortably hoverable. */
+.chart-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: none;
+  padding: 0;
+  cursor: default;
+  position: relative;
+}
+.chart-col::after {
+  /* Extends the hit area over the axis band to clear ~24px. */
+  content: '';
+  position: absolute;
+  inset: 0 -1px -16px -1px;
+}
+
+.chart-bar {
+  width: 100%;
+  /* Capped so a 14-day range renders thin marks rather than fat saturated
+     blocks; at 90 days the column width binds first and this never applies. */
+  max-width: 16px;
+  min-height: 2px;
+  background: var(--viz);
+  /* 4px rounded data-end; the baseline end stays square. */
+  border-radius: 4px 4px 0 0;
+  transition: background 0.12s;
+}
+.chart-col:hover .chart-bar,
+.chart-col.is-active .chart-bar { background: var(--accent); }
+.chart-bar.is-zero { background: var(--viz-track); min-height: 2px; }
+
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ranked lists ----------------------------------------------------------- */
+
+.rank-list { display: flex; flex-direction: column; gap: 2px; }
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 9px 0;
+  align-items: baseline;
+}
+
+.rank-name { font-size: 13px; min-width: 0; }
+.rank-sub { font-size: 11px; color: var(--muted); }
+
+.rank-value {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.rank-track {
+  grid-column: 1 / -1;
+  height: 4px;
+  background: var(--viz-track);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.rank-fill {
+  height: 100%;
+  background: var(--viz);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Live uploads ----------------------------------------------------------- */
+
+.live-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface2);
+  align-items: center;
+}
+.live-row:last-child { border-bottom: none; }
+.live-row .progress { grid-column: 1 / -1; }
 
 /* ============================================================================
    Mini audio player
