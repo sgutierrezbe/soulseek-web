@@ -518,13 +518,196 @@
           <span class="topbar-title" x-show="!openAlbumEntry" x-text="t('libraryTitle')"></span>
           <span class="topbar-title truncate" x-show="openAlbumEntry"
                 x-text="openAlbumEntry ? openAlbumEntry.album : ''"></span>
-          <span class="badge" x-show="!openAlbumEntry" x-text="library.length"></span>
           <span style="flex:1"></span>
-          <button class="btn-ghost btn-sm" @click="loadLibrary(true)" x-text="t('refresh')"></button>
+          <button class="btn-ghost btn-sm" x-show="libraryTab === 'albums'"
+                  @click="loadLibrary(true)" x-text="t('refresh')"></button>
+          <button class="btn-ghost btn-sm" x-show="libraryTab === 'sharing'"
+                  @click="loadStats()" x-text="t('refresh')"></button>
+        </div>
+        <div class="topbar-controls" x-show="!openAlbumEntry">
+          <div class="segmented">
+            <button :class="{ 'is-active': libraryTab === 'albums' }"
+                    @click="showLibraryTab('albums')" x-text="t('tabAlbums')"></button>
+            <button :class="{ 'is-active': libraryTab === 'sharing' }"
+                    @click="showLibraryTab('sharing')" x-text="t('tabSharing')"></button>
+          </div>
+          <span class="badge" x-show="libraryTab === 'albums'" x-text="library.length"></span>
         </div>
       </div>
 
-      <div class="content">
+      <!-- ── SHARING STATS ─────────────────────────────────────────────── -->
+      <div class="content" x-show="libraryTab === 'sharing' && !openAlbumEntry">
+        <div class="error-banner" x-show="statsError">
+          <span>⚠</span><span x-text="statsError"></span>
+        </div>
+
+        <div class="searching-indicator" x-show="statsLoading && !shareStats">
+          <div class="spinner"></div><span x-text="t('sharingScanning')"></span>
+        </div>
+
+        <template x-if="shareStats">
+          <div>
+            <!-- Headline numbers. These are single values, so they are tiles,
+                 not charts. -->
+            <div class="stat-grid">
+              <div class="stat-tile">
+                <div class="stat-label" x-text="t('statTotalUploads')"></div>
+                <div class="stat-value" x-text="formatCount(shareStats.totals.files)"></div>
+                <div class="stat-sub" x-show="shareStats.totals.since"
+                     x-text="t('statSince', { date: formatDateTime(shareStats.totals.since) })"></div>
+              </div>
+              <div class="stat-tile">
+                <div class="stat-label" x-text="t('statTotalData')"></div>
+                <div class="stat-value" x-text="formatSize(shareStats.totals.bytes)"></div>
+                <div class="stat-sub"
+                     x-text="t('statAcrossAlbums', { count: shareStats.totals.albums })"></div>
+              </div>
+              <div class="stat-tile">
+                <div class="stat-label" x-text="t('statUsers')"></div>
+                <div class="stat-value" x-text="formatCount(shareStats.totals.users)"></div>
+                <div class="stat-sub" x-show="shareStats.totals.last_upload_at"
+                     x-text="t('statLastUpload', { date: formatDateTime(shareStats.totals.last_upload_at) })"></div>
+              </div>
+              <div class="stat-tile" x-show="shareInfo">
+                <div class="stat-label" x-text="t('statSharedFiles')"></div>
+                <div class="stat-value" x-text="shareInfo ? formatCount(shareInfo.files) : '—'"></div>
+                <div class="stat-sub" x-show="shareInfo"
+                     x-text="t('statAcrossDirs', { count: shareInfo ? formatCount(shareInfo.directories) : 0 })"></div>
+              </div>
+            </div>
+
+            <!-- Uploads over time. One series, one colour, one axis: bar height
+                 is the file count and bytes live in the readout, rather than a
+                 second y-scale. -->
+            <div class="chart-card">
+              <div class="chart-head">
+                <span class="section-title" x-text="t('uploadsPerDay')"></span>
+                <div style="display:flex;gap:6px">
+                  <button class="chip" :class="{ 'is-active': statsDays === 14 }"
+                          @click="setStatsRange(14)" x-text="t('range14')"></button>
+                  <button class="chip" :class="{ 'is-active': statsDays === 30 }"
+                          @click="setStatsRange(30)" x-text="t('range30')"></button>
+                  <button class="chip" :class="{ 'is-active': statsDays === 90 }"
+                          @click="setStatsRange(90)" x-text="t('range90')"></button>
+                </div>
+              </div>
+
+              <div class="chart-readout">
+                <template x-if="readoutDay && readoutDay.files > 0">
+                  <span>
+                    <span x-text="formatDay(readoutDay.date)"></span>
+                    <span> · </span>
+                    <span x-text="t('dayReadout', { count: readoutDay.files, size: formatSize(readoutDay.bytes) })"></span>
+                    <span x-show="!selectedDay" style="color:var(--muted)"
+                          x-text="' · ' + t('peakDay')"></span>
+                  </span>
+                </template>
+                <span class="is-empty" x-show="!readoutDay || readoutDay.files === 0"
+                      x-text="t('noUploadsYet')"></span>
+              </div>
+
+              <div class="chart-plot" @mouseleave="selectedDay = null">
+                <template x-for="point in shareStats.timeline" :key="point.date">
+                  <div class="chart-col"
+                       :class="{ 'is-active': selectedDay && selectedDay.date === point.date }"
+                       @mouseenter="selectDay(point)" @click="selectDay(point)"
+                       :title="formatDay(point.date) + ' · ' + point.files">
+                    <div class="chart-bar" :class="{ 'is-zero': point.files === 0 }"
+                         :style="'height:' + barHeight(point) + '%'"></div>
+                  </div>
+                </template>
+              </div>
+
+              <div class="chart-axis">
+                <span x-text="shareStats.timeline.length ? formatDay(shareStats.timeline[0].date) : ''"></span>
+                <span x-text="shareStats.timeline.length ? formatDay(shareStats.timeline[shareStats.timeline.length - 1].date) : ''"></span>
+              </div>
+            </div>
+
+            <!-- Live -->
+            <template x-if="liveUploads.length">
+              <div style="margin-bottom:22px">
+                <div class="section-header">
+                  <span class="section-title" x-text="t('liveUploads')"></span>
+                  <span class="badge is-accent" x-text="liveUploads.length"></span>
+                </div>
+                <template x-for="(up, i) in liveUploads" :key="i">
+                  <div class="live-row">
+                    <div style="min-width:0">
+                      <div class="rank-name truncate" x-text="up.filename"></div>
+                      <div class="rank-sub truncate">
+                        <span x-text="up.username"></span>
+                        <span x-show="up.folder"> · </span>
+                        <span x-show="up.folder" x-text="up.folder"></span>
+                      </div>
+                    </div>
+                    <div class="rank-value">
+                      <span x-show="up.speed > 0" x-text="formatSpeed(up.speed)"></span>
+                      <span x-show="!up.speed && up.queue_position"
+                            x-text="t('queuePos') + ' ' + up.queue_position"></span>
+                    </div>
+                    <div class="progress">
+                      <div class="progress-fill is-active" :style="'width:' + up.percent + '%'"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- Ranked lists. One colour for every bar: shading by rank would
+                 re-encode the length the bar already shows. Values are printed,
+                 so nothing depends on hover. -->
+            <template x-for="group in [
+              { key: 'top_albums', title: t('topAlbums'), label: 'folder', sub: null },
+              { key: 'top_files',  title: t('topFiles'),  label: 'name',   sub: 'folder' },
+              { key: 'top_users',  title: t('topUsers'),  label: 'username', sub: null }
+            ]" :key="group.key">
+              <div style="margin-bottom:22px" x-show="shareStats[group.key].length">
+                <div class="section-header">
+                  <span class="section-title" x-text="group.title"></span>
+                </div>
+                <div class="rank-list">
+                  <template x-for="(row, i) in shareStats[group.key]" :key="i">
+                    <div class="rank-row">
+                      <div style="min-width:0">
+                        <div class="rank-name truncate" x-text="row[group.label] || '—'"></div>
+                        <div class="rank-sub truncate" x-show="group.sub && row[group.sub]"
+                             x-text="group.sub ? row[group.sub] : ''"></div>
+                      </div>
+                      <div class="rank-value">
+                        <span x-text="t('timesLabel', { count: row.count })"></span>
+                        <span> · </span>
+                        <span x-text="formatSize(row.bytes)"></span>
+                      </div>
+                      <!-- Length encodes the same measure as the leading
+                           figure (count), so the list reads monotonically. -->
+                      <div class="rank-track">
+                        <div class="rank-fill"
+                             :style="'width:' + (shareStats[group.key][0].count
+                               ? (row.count / shareStats[group.key][0].count * 100) : 0) + '%'"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <div class="empty-state" x-show="shareStats.totals.files === 0 && !liveUploads.length">
+              <div class="empty-state-icon">↑</div>
+              <div class="empty-state-text" x-text="t('noUploadsYet')"></div>
+              <div class="empty-state-text" style="font-size:12px" x-text="t('noUploadsHint')"></div>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+                        padding-top:18px;border-top:1px solid var(--border)">
+              <span class="field-hint" style="flex:1;min-width:200px;margin:0" x-text="t('statsNote')"></span>
+              <button class="btn-ghost btn-sm" @click="resetStats()" x-text="t('resetStats')"></button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div class="content" x-show="libraryTab === 'albums' || openAlbumEntry">
         <div class="error-banner" x-show="libraryError">
           <span>⚠</span><span x-text="libraryError"></span>
         </div>

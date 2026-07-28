@@ -5,6 +5,7 @@ Run with:  uvicorn main:app --host 0.0.0.0 --port 8080
 
 from __future__ import annotations
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 
@@ -18,7 +19,8 @@ import slskd
 from auth import AuthMiddleware
 from auth import router as auth_router
 from config import BASE_DIR, CACHE_DIR, PLATFORM, settings
-from routers import covers, downloads, library, search, setup, stream
+from routers import covers, downloads, library, search, setup, stats, stream
+from stats import stats as upload_stats
 
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -30,9 +32,19 @@ async def lifespan(app: FastAPI):
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
     except OSError:
         pass
+
+    # Samples slskd's upload list so sharing totals survive slskd clearing its
+    # own transfer history.
+    poller = asyncio.create_task(stats.poller())
     try:
         yield
     finally:
+        poller.cancel()
+        try:
+            await poller
+        except asyncio.CancelledError:
+            pass
+        await asyncio.to_thread(upload_stats.save, True)
         await slskd.close_clients()
 
 
@@ -55,6 +67,7 @@ app.include_router(downloads.router, prefix="/api/downloads", tags=["downloads"]
 app.include_router(library.router, prefix="/api/library", tags=["library"])
 app.include_router(covers.router, prefix="/api/covers", tags=["covers"])
 app.include_router(stream.router, prefix="/api/stream", tags=["stream"])
+app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 
 
 @app.exception_handler(slskd.SlskdError)
